@@ -38,3 +38,5 @@
 #ts-toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px); background: #2e9e5b; color: #fff; padding: 10px 18px; border-radius: 4px; opacity: 0; transition: all .25s; z-index: 9999; max-width: 80vw; font-size: 13px; pointer-events: none; }
 #ts-toast.ts-show { opacity: 1; transform: translateX(-50%) translateY(0); }
 #ts-toast.ts-error { background: #c0392b; }
+#ts-app h3.ts-sub { font-size: 15px; margin-top: 16px; }
+#ts-app .ts-inline-label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }

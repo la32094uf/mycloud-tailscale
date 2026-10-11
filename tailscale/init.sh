@@ -17,3 +17,4 @@ log "Config dir: $CONF_DIR"
 mkdir -p "$WEB_DIR"
 ln -sf "$APP_DIR"/web/* "$WEB_DIR/"
 log "Web dir linked: $WEB_DIR"
+rm -f /tmp/tailscale_apkg_upgrade

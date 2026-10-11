@@ -19,6 +19,11 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
   - **update the Tailscale binaries in place** when a new release is out, with
     checksum verification and one-click **roll back** to the previous version.
     You never need to reinstall the app for a Tailscale update.
+  - **update notifications** through the My Cloud alert system (bell icon, and
+    e-mail if alert e-mails are configured under Settings → Notifications):
+    a reminder while an update is available (daily, weekly, monthly or off),
+    and an immediate alert when Tailscale publishes a new
+    [security bulletin](https://tailscale.com/security-bulletins/)
   - view the daemon log
 - The Tailscale binaries are **downloaded on first start** from
   `pkgs.tailscale.com` for your CPU (arm, arm64, amd64), so the app package
@@ -59,9 +64,10 @@ Your NAS needs internet access for the download and for Tailscale itself.
   logs/                              tailscaled.log, tailscale-ctl.log
 ```
 
-`<volume>` is `/mnt/HD/HD_a2` on most models. Uninstalling the app keeps
-`tailscale_conf` so a reinstall reconnects without a new login; delete that
-folder by hand for a clean slate.
+`<volume>` is `/mnt/HD/HD_a2` on most models. Installing a newer app package
+over the existing one keeps `tailscale_conf`, so binaries, login and settings
+survive app upgrades. **Uninstalling** from the dashboard logs the node out of
+your tailnet and deletes `tailscale_conf`, as the uninstall dialog says.
 
 Everything the settings page does goes through one shell script, which you can
 also use over SSH:

@@ -12,3 +12,6 @@ TS_EXTRA_UP_ARGS=
 TS_EXTRA_DAEMON_ARGS=
 # Update channel: stable or unstable
 TS_CHANNEL=stable
+# Update notifications via the My Cloud alert system (bell icon + alert e-mail):
+# off | daily | weekly | monthly. A new Tailscale security bulletin always alerts at once.
+TS_NOTIFY=monthly

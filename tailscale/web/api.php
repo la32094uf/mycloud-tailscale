@@ -16,12 +16,12 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.2';
+$APP_VERSION = '1.0.3';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
     'TS_HOSTNAME', 'TS_ACCEPT_ROUTES', 'TS_ADVERTISE_ROUTES', 'TS_ADVERTISE_EXIT_NODE',
-    'TS_ACCEPT_DNS', 'TS_SSH', 'TS_EXTRA_UP_ARGS', 'TS_EXTRA_DAEMON_ARGS', 'TS_CHANNEL',
+    'TS_ACCEPT_DNS', 'TS_SSH', 'TS_EXTRA_UP_ARGS', 'TS_EXTRA_DAEMON_ARGS', 'TS_CHANNEL', 'TS_NOTIFY',
 ];
 
 function out($data, $code = 200) {
@@ -67,7 +67,7 @@ function write_settings($s) {
 }
 
 $action = $_REQUEST['action'] ?? 'status';
-$mutating = !in_array($action, ['status', 'settings', 'check_update', 'update_status', 'login_url_poll', 'log'], true);
+$mutating = !in_array($action, ['status', 'settings', 'check_update', 'update_status', 'login_url_poll', 'log', 'notify_status'], true);
 if ($mutating) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
     if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') fail('missing X-Requested-With header', 403);
@@ -125,6 +125,8 @@ switch ($action) {
                     break;
                 case 'TS_CHANNEL':
                     if (!in_array($v, ['stable', 'unstable'], true)) $v = 'stable'; break;
+                case 'TS_NOTIFY':
+                    if (!in_array($v, ['off', 'daily', 'weekly', 'monthly'], true)) $v = 'monthly'; break;
                 case 'TS_EXTRA_UP_ARGS': case 'TS_EXTRA_DAEMON_ARGS':
                     // Flags only: no shell metacharacters.
                     if ($v !== '' && !preg_match('/^(--?[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*\s*)+$/', $v)) fail("Extra flags may only contain --flag=value pairs, no shell characters.");
@@ -154,6 +156,21 @@ switch ($action) {
         [$rc, $o] = ctl(['update-status'], 10);
         [$state, $msg] = array_pad(explode('|', trim($o), 2), 2, '');
         out(['ok' => true, 'state' => $state, 'message' => $msg]);
+
+    case 'notify_status':
+        [$rc, $o] = ctl(['notify-status'], 10);
+        $data = json_decode($o, true);
+        if (!is_array($data)) fail('notify status failed: ' . $o, 500);
+        $data['ok'] = true;
+        out($data);
+
+    case 'notify_test':
+        [$rc, $o] = ctl(['notify-test'], 30);
+        out(['ok' => $rc === 0, 'output' => $o]);
+
+    case 'notify_check':
+        [$rc, $o] = ctl(['notify-check'], 60);
+        out(['ok' => $rc === 0, 'output' => $o]);
 
     case 'rollback':
         [$rc, $o] = ctl(['rollback'], 90);

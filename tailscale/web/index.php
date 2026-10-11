@@ -3,7 +3,7 @@
 // fragment inside the My Cloud dashboard, so this file has no <html>/<head>.
 // Access is protected by the My Cloud login (Apache returns 403 otherwise).
 ?>
-<link rel="stylesheet" href="/apps/tailscale/tailscale.css?v=1.0.2">
+<link rel="stylesheet" href="/apps/tailscale/tailscale.css?v=1.0.3">
 <div id="ts-app">
   <div class="ts-row">
     <div class="ts-card" id="ts-status-card">
@@ -79,6 +79,22 @@
         <button class="ts-btn" id="ts-rollback-btn" disabled>Roll back</button>
       </div>
       <pre id="ts-upd-log" class="ts-log ts-small"></pre>
+      <h3 class="ts-sub">Update notifications</h3>
+      <p class="ts-help">Uses the My Cloud alert system: the alert appears under the bell icon and is e-mailed when alert e-mails are set up (Settings → Notifications). A new <a href="https://tailscale.com/security-bulletins/" target="_blank" rel="noopener">Tailscale security bulletin</a> always alerts right away; otherwise you get a reminder at the chosen interval while an update is available.</p>
+      <div class="ts-field">
+        <label class="ts-inline-label">Remind me
+          <select id="ts-notify" name="TS_NOTIFY">
+            <option value="off">never</option>
+            <option value="daily">daily</option>
+            <option value="weekly">weekly</option>
+            <option value="monthly" selected>monthly</option>
+          </select>
+        </label>
+        <button class="ts-btn ts-secondary" id="ts-notify-save-btn">Save</button>
+        <button class="ts-btn ts-secondary" id="ts-notify-test-btn">Send test alert</button>
+        <button class="ts-btn ts-secondary" id="ts-notify-check-btn">Check now</button>
+      </div>
+      <p class="ts-help" id="ts-notify-info"></p>
     </div>
   </div>
 
@@ -90,4 +106,4 @@
   <div id="ts-toast"></div>
   <p class="ts-footer">Tailscale app <span id="ts-app-version"></span> · <a href="https://github.com/la32094uf/mycloud-tailscale" target="_blank" rel="noopener">github.com/la32094uf/mycloud-tailscale</a></p>
 </div>
-<script src="/apps/tailscale/tailscale.js?v=1.0.2"></script>
+<script src="/apps/tailscale/tailscale.js?v=1.0.3"></script>

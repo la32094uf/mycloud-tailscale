@@ -201,6 +201,36 @@
       .then(function () { busy(false); return loadStatus(); });
   });
 
+  // ---- notifications ----------------------------------------------------
+  function fmtTs(t) { return t ? new Date(parseInt(t, 10) * 1000).toLocaleString() : 'never'; }
+  function loadNotify() {
+    return api('notify_status').then(function (r) {
+      $('ts-notify').value = r.mode || 'monthly';
+      var info = 'Last check: ' + fmtTs(r.last_check) + ' · last alert: ' + fmtTs(r.last_notified) + (r.last_notified_version ? ' (for ' + r.last_notified_version + ')' : '') +
+        ' · newest bulletin seen: ' + (r.last_bulletin || '–') + (r.loop_running ? '' : ' · scheduler not running (start the app)') +
+        (r.alert_tool ? '' : ' · this firmware has no alert tool');
+      $('ts-notify-info').textContent = info;
+    }).catch(function (e) { $('ts-notify-info').textContent = e.message; });
+  }
+  $('ts-notify-save-btn').addEventListener('click', function () {
+    busy(true);
+    api('save_settings', { TS_NOTIFY: $('ts-notify').value }).then(function () { toast('Notification setting saved.'); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(false); return loadNotify(); });
+  });
+  $('ts-notify-test-btn').addEventListener('click', function () {
+    busy(true);
+    api('notify_test', {}).then(function (r) { toast(r.ok ? 'Test alert sent. Check the bell icon and your mailbox.' : r.output, !r.ok); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(false); });
+  });
+  $('ts-notify-check-btn').addEventListener('click', function () {
+    busy(true);
+    api('notify_check', {}).then(function (r) { toast(r.output || 'checked', !r.ok); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(false); return loadNotify(); });
+  });
+
   // ---- log --------------------------------------------------------------
   function loadLog() {
     return api('log').then(function (r) { var l = $('ts-log'); l.textContent = r.log || '(empty)'; l.scrollTop = l.scrollHeight; })
@@ -214,5 +244,6 @@
     api('update_status').then(function (r) { if (r.state === 'running') { busy(true); $('ts-upd-log').textContent = ''; watchUpdate(); } });
   });
   loadSettings();
+  loadNotify();
   loadLog();
 })();
