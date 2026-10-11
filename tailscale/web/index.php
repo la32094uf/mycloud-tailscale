@@ -28,7 +28,7 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
 
     <div class="ts-card" id="ts-login-card">
       <h3>Login</h3>
-      <p class="ts-help">Create a key at <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" rel="noopener">Tailscale admin → Settings → Keys</a> and paste it here. The key is written to a root-only temporary file during login and deleted right after; it is not kept.</p>
+      <p class="ts-help">Go to <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" rel="noopener">Tailscale admin → Settings → Keys</a>, press <strong>Generate auth key</strong>, copy the key that appears and paste it here. The <em>expiration</em> you choose there only limits how long the key can be used to connect a machine, not how long this NAS stays logged in. Leave "Ephemeral" off. The key is written to a root-only temporary file during login and deleted right after; it is not kept.</p>
       <div class="ts-field">
         <input type="password" id="ts-authkey" placeholder="tskey-auth-…" autocomplete="off" spellcheck="false">
         <button class="ts-btn ts-primary" id="ts-login-btn">Connect with auth key</button>

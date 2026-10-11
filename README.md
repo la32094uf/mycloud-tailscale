@@ -43,9 +43,17 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
    (`SHA256SUMS` is published next to the files).
 2. My Cloud dashboard → **Apps** → **Install an app manually** → pick the file.
 3. Open **Apps → Tailscale**. The first start downloads the Tailscale binaries
-   (~30 MB) in the background; the page shows the progress. Then paste an auth
-   key from [Tailscale admin → Settings → Keys](https://login.tailscale.com/admin/settings/keys)
-   and press **Connect**, or use the browser login link.
+   (~30 MB) in the background; the page shows the progress.
+4. Get an auth key: [Tailscale admin → Settings → Keys](https://login.tailscale.com/admin/settings/keys)
+   → **Generate auth key**. The expiration you pick there is how long the
+   *key* can be used to connect a machine (pick anything, you use it once);
+   it is not how long the NAS stays logged in. Leave "Ephemeral" off. Paste
+   the key on the app page and press **Connect**, or use the browser login
+   link instead.
+
+How long the NAS stays logged in is governed by Tailscale's machine key
+expiry (180 days by default). To avoid re-authenticating, open the machine in
+the admin console and choose **Disable key expiry**.
 
 Your NAS needs internet access for the download and for Tailscale itself.
 
