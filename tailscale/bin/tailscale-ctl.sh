@@ -155,9 +155,11 @@ rotate_log() { # copy-truncate is safe because tailscaled appends (O_APPEND)
     if [ "$(wc -c < "$1")" -gt "$MAX_LOG_BYTES" ]; then cp -f "$1" "$1.1" 2>/dev/null; : > "$1"; fi
 }
 
-cmd_weblinks() { # CenterType=1 apps are served from /var/www/apps/<name>; /var/www may be tmpfs
+cmd_weblinks() { # CenterType=1 apps are served from /var/www/apps/<name>; /var/www is a ramdisk
     mkdir -p "$WEB_DIR" 2>/dev/null || return 0
-    for f in "$APP_DIR"/web/*; do ln -sf "$f" "$WEB_DIR/"; done
+    set +f                     # globbing is off globally (set -f); needed here
+    for f in "$APP_DIR"/web/*; do [ -e "$f" ] && ln -sf "$f" "$WEB_DIR/"; done
+    set -f
 }
 
 cmd_start() {
@@ -215,6 +217,8 @@ cmd_login() {
     [ -x "$TSD" ] || die "Tailscale is not downloaded yet; press Start first"
     is_running || cmd_start >/dev/null
     wait_for_socket || die "tailscaled did not come up"
+    # An auth key is ignored by 'tailscale up' while already logged in; say so instead of pretending.
+    [ "$(backend_state)" = Running ] && die "already connected to a tailnet; press 'Log out of Tailscale' first to switch"
     rm -f "$LOGIN_OUT"
     # shellcheck disable=SC2046,SC2086
     out="$(TS_AUTHKEY="$key" "$TS" --socket="$SOCK" up --reset --timeout=90s --auth-key="$key" $(pref_flags) $TS_EXTRA_UP_ARGS 2>&1)"
@@ -311,7 +315,7 @@ cmd_update() {
     # Stage first, then swap: the old version is only discarded once the new one is in place.
     new="${CONF_DIR:?}/bin.new"; old="${CONF_DIR:?}/bin.old"
     rm -rf "$new" "$old"; mkdir -p "$new"
-    if ! mv "$work/tailscale" "$work/tailscaled" "$new/" || ! chmod 755 "$new"/*; then
+    if ! mv "$work/tailscale" "$work/tailscaled" "$new/" || ! chmod 755 "$new/tailscale" "$new/tailscaled"; then
         ustat failed "could not stage binaries (disk full?)"; rm -rf "$new" "$work" "$tgz" "$tgz.sha256"; return 1
     fi
     rm -rf "$work" "$tgz" "$tgz.sha256"
