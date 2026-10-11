@@ -4,6 +4,7 @@
 
 APP_NAME="tailscale"
 LOG="/tmp/debug_apkg"
+[ -L "$LOG" ] && LOG=/dev/null     # never append as root through a planted symlink
 
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [$APP_NAME] [$(basename "$0")] $1" >> "$LOG"

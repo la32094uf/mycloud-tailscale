@@ -23,4 +23,5 @@ for model in $MODELS; do
   mv "$out" "packages/${PKG}_${VERSION}_${short}.bin"
 done
 rm -f apkg_tar_tmp.tgz $PKG/apkg.sign $PKG/apkg.xml
+( cd packages && sha256sum ./*.bin > SHA256SUMS )
 ls -la packages

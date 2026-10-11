@@ -55,9 +55,15 @@ MAX_LOG_BYTES=5000000
 
 # Refuse to run with a nonsensical layout (protects every rm below).
 case "$CONF_DIR" in */Nas_Prog/tailscale_conf) ;; *) echo "unexpected conf dir: $CONF_DIR" >&2; exit 1 ;; esac
-
+# Nas_Prog is world-writable on OS5, so never trust a tailscale_conf we did not
+# create: no symlink, root-owned. (Everything inside is created with umask 077.)
+if [ -e "$CONF_DIR" ] || [ -L "$CONF_DIR" ]; then
+    if [ -L "$CONF_DIR" ] || [ "$(stat -c %u "$CONF_DIR" 2>/dev/null)" != 0 ]; then
+        echo "refusing: $CONF_DIR is a symlink or not owned by root" >&2; exit 1
+    fi
+fi
 mkdir -p "$BIN_DIR" "$STATE_DIR" "$LOG_DIR" "$TMP_DIR" "$SOCK_DIR" 2>/dev/null
-chmod 700 "$STATE_DIR" 2>/dev/null
+chmod 700 "$CONF_DIR" "$STATE_DIR" "$SOCK_DIR" 2>/dev/null
 [ -f "$SETTINGS" ] || cp "$APP_DIR/settings.conf.default" "$SETTINGS" 2>/dev/null
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$CTL_LOG"; }
@@ -71,6 +77,8 @@ clean_flags() { printf '%s' "$1" | tr -d '\r' | tr -cd 'A-Za-z0-9=.,:/_@+ -'; }
 clean_word()  { printf '%s' "$1" | tr -d '\r' | tr -cd 'A-Za-z0-9.:/,_-'; }
 load_settings() {
     [ -f "$SETTINGS" ] || return 0
+    # A planted settings file could point the node at another control server: only read our own.
+    if [ -L "$SETTINGS" ] || [ "$(stat -c %u "$SETTINGS" 2>/dev/null)" != 0 ]; then log "ignoring $SETTINGS: symlink or not root-owned"; return 0; fi
     # Only KEY=VALUE lines with known keys; values are never eval'ed as code.
     while IFS='=' read -r k v; do
         case "$k" in
@@ -123,9 +131,10 @@ sha256_of() {
     elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 "$1" | sed 's/.*= //'
     else echo ""; fi
 }
-fetch() { # fetch URL DEST  (bounded: the NAS has no 'timeout' command)
-    if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 2 --connect-timeout 20 --max-time 900 -o "$2" "$1"
-    else wget -q -T 60 -O "$2" "$1"; fi
+fetch() { # fetch URL DEST [MAXBYTES]  (HTTPS only, bounded in time and size; no wget fallback: busybox wget may skip TLS checks)
+    command -v curl >/dev/null 2>&1 || { log "curl missing"; return 1; }
+    curl -fsSL --proto '=https' --proto-redir '=https' --retry 2 --connect-timeout 20 --max-time 900 \
+         --max-filesize "${3:-2000000}" -o "$2" "$1"
 }
 
 # --- daemon ---------------------------------------------------------------
@@ -134,7 +143,13 @@ daemon_pid() {
         p="$(cat "$PIDFILE" 2>/dev/null)"
         [ -n "$p" ] && [ -d "/proc/$p" ] && grep -q tailscaled "/proc/$p/cmdline" 2>/dev/null && { echo "$p"; return 0; }
     fi
-    pgrep -f "$TSD" 2>/dev/null | head -1
+    # Fallback: find a process whose executable really is our tailscaled (argv can be faked by anyone).
+    set +f
+    for d in /proc/[0-9]*; do
+        [ "$(readlink "$d/exe" 2>/dev/null)" = "$TSD" ] && { set -f; echo "${d#/proc/}"; return 0; }
+    done
+    set -f
+    return 1
 }
 is_running() { [ -n "$(daemon_pid)" ]; }
 backend_state() { "$TS" --socket="$SOCK" status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([A-Za-z]*\)".*/\1/p' | head -1; }
@@ -147,6 +162,16 @@ wait_for_socket() { # up to 20 s for tailscaled to answer on its socket ('status
     return 1
 }
 
+# Refuse to execute binaries that are not root-owned or are writable by others
+# (defence in depth: Nas_Prog itself is mode 0777 on OS5).
+safe_to_exec() { # safe_to_exec PATH...
+    for f in "$@"; do
+        [ -e "$f" ] || return 1
+        [ -L "$f" ] && { log "refusing $f: symlink"; return 1; }
+        [ "$(stat -c %u "$f" 2>/dev/null)" = 0 ] || { log "refusing $f: not owned by root"; return 1; }
+        case "$(stat -c %A "$f" 2>/dev/null | cut -c6,9)" in --) ;; *) log "refusing $f: writable by group/others"; return 1 ;; esac
+    done
+}
 installed_version() { [ -x "$TS" ] && "$TS" version 2>/dev/null | head -1; }
 prev_version() { [ -x "$PREV_DIR/tailscale" ] && "$PREV_DIR/tailscale" version 2>/dev/null | head -1; }
 
@@ -175,6 +200,7 @@ cmd_start() {
         return 0
     fi
     if is_running; then echo "already running (pid $(daemon_pid))"; notify_loop_start; return 0; fi
+    safe_to_exec "$CONF_DIR" "$BIN_DIR" "$TSD" "$TS" || die "binaries in $BIN_DIR are not root-owned/root-only; refusing to start (see tailscale-ctl.log)"
     tunflag=""
     have_tun || { tunflag="--tun=userspace-networking"; log "no /dev/net/tun, using userspace networking"; }
     rotate_log "$DAEMON_LOG"
@@ -183,6 +209,8 @@ cmd_start() {
     echo $! > "$PIDFILE"
     log "started tailscaled pid $!"
     echo "started (pid $!)"
+    # tailscaled creates its control socket 0666; only root should drive it on a NAS.
+    wait_for_socket >/dev/null 2>&1 && chmod 600 "$SOCK" 2>/dev/null
     notify_loop_start
 }
 cmd_stop() {
@@ -192,7 +220,7 @@ cmd_stop() {
     kill "$p" 2>/dev/null
     i=0; while [ $i -lt 10 ] && [ -d "/proc/$p" ]; do sleep 1; i=$((i+1)); done
     [ -d "/proc/$p" ] && kill -9 "$p" 2>/dev/null
-    pkill -9 -f "$TSD" 2>/dev/null
+    q="$(daemon_pid)"; [ -n "$q" ] && kill -9 "$q" 2>/dev/null   # a second instance, if any
     rm -f "$PIDFILE"
     log "stopped tailscaled pid $p"
     echo "stopped"
@@ -211,8 +239,9 @@ cmd_status() {
         "$running" "$tun" "$nat" "$(ts_arch)" "$ver" "$prev" "$(lock_held && echo true || echo false)" "$CONF_DIR" "$APP_DIR" "$st"
 }
 cmd_login() {
-    # The auth key comes from the environment so it never shows up in `ps`.
-    key="${TS_AUTHKEY:-}"
+    # The auth key comes from the environment so it never shows up in `ps`; drop it
+    # from our environment at once so children (tailscaled, notify loop) don't inherit it.
+    key="${TS_AUTHKEY:-}"; unset TS_AUTHKEY
     case "$key" in tskey-*) ;; *) die "that does not look like a Tailscale auth key (expected tskey-...)" ;; esac
     case "$key" in *[!A-Za-z0-9_-]*) die "auth key contains invalid characters" ;; esac
     load_settings
@@ -224,6 +253,7 @@ cmd_login() {
     rm -f "$LOGIN_OUT"
     # The CLI reads the key from a file (--auth-key=file:...), so it never appears in ps/argv.
     keyfile="$STATE_DIR/authkey.$$"
+    trap 'rm -f "$keyfile"' EXIT INT TERM
     printf '%s' "$key" > "$keyfile" && chmod 600 "$keyfile" || die "could not write key file"
     # shellcheck disable=SC2046,SC2086
     out="$("$TS" --socket="$SOCK" up --reset --timeout=90s --auth-key="file:$keyfile" $(pref_flags) $TS_EXTRA_UP_ARGS 2>&1)"
@@ -318,26 +348,30 @@ cmd_update() {
     case "$want" in *[!0-9.]*) ustat failed "invalid version string"; return 1 ;; esac
     cur="$(installed_version)"
     if [ "$want" = "$cur" ]; then ustat done "Already on $cur"; return 0; fi
+    find "$TMP_DIR" -maxdepth 1 -name 'tailscale_*' -exec rm -rf {} + 2>/dev/null   # leftovers of an interrupted update
     name="tailscale_${want}_${arch}"
     work="${TMP_DIR:?}/${name:?}"
     tgz="$work.tgz"
     rm -rf "$work" "$tgz" "$tgz.sha256"
     ustat running "Downloading $name.tgz…"
-    fetch "$PKG_BASE/$TS_CHANNEL/$name.tgz" "$tgz" || { ustat failed "download failed"; return 1; }
+    fetch "$PKG_BASE/$TS_CHANNEL/$name.tgz" "$tgz" 150000000 || { ustat failed "download failed"; return 1; }
     ustat running "Verifying checksum…"
-    if fetch "$PKG_BASE/$TS_CHANNEL/$name.tgz.sha256" "$tgz.sha256"; then
-        want_sum="$(cut -d' ' -f1 "$tgz.sha256")"; have_sum="$(sha256_of "$tgz")"
-        if [ -n "$have_sum" ] && [ "$want_sum" != "$have_sum" ]; then ustat failed "checksum mismatch"; rm -f "$tgz"; return 1; fi
-    else
-        log "warning: no .sha256 file available, skipping verification"
-    fi
+    fetch "$PKG_BASE/$TS_CHANNEL/$name.tgz.sha256" "$tgz.sha256" || { ustat failed "could not download checksum"; rm -f "$tgz"; return 1; }
+    want_sum="$(cut -d' ' -f1 "$tgz.sha256")"; have_sum="$(sha256_of "$tgz")"
+    case "$want_sum" in *[!0-9a-f]*|'') ustat failed "malformed checksum file"; rm -f "$tgz"; return 1 ;; esac
+    [ -n "$have_sum" ] || { ustat failed "no sha256 tool on this device"; rm -f "$tgz"; return 1; }
+    [ "$want_sum" = "$have_sum" ] || { ustat failed "checksum mismatch"; rm -f "$tgz"; return 1; }
     ustat running "Extracting…"
-    ( cd "$TMP_DIR" && tar xzf "$tgz" ) || { ustat failed "extract failed"; return 1; }
-    [ -x "$work/tailscaled" ] && [ -x "$work/tailscale" ] || { ustat failed "archive did not contain the binaries"; return 1; }
+    # Extract only the two members we need; never let an archive drop other files as root.
+    ( cd "$TMP_DIR" && tar xzf "$tgz" "$name/tailscale" "$name/tailscaled" ) || { ustat failed "extract failed"; return 1; }
+    for f in "$work/tailscaled" "$work/tailscale"; do
+        [ -f "$f" ] && [ ! -L "$f" ] || { ustat failed "archive did not contain the binaries"; rm -rf "$work"; return 1; }
+    done
+    chmod 755 "$work/tailscaled" "$work/tailscale"
     # Stage first, then swap: the old version is only discarded once the new one is in place.
     new="${CONF_DIR:?}/bin.new"; old="${CONF_DIR:?}/bin.old"
     rm -rf "$new" "$old"; mkdir -p "$new"
-    if ! mv "$work/tailscale" "$work/tailscaled" "$new/" || ! chmod 755 "$new/tailscale" "$new/tailscaled"; then
+    if ! mv "$work/tailscale" "$work/tailscaled" "$new/"; then
         ustat failed "could not stage binaries (disk full?)"; rm -rf "$new" "$work" "$tgz" "$tgz.sha256"; return 1
     fi
     rm -rf "$work" "$tgz" "$tgz.sha256"

@@ -11,14 +11,16 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
   shows up under *Apps* like any other app. No more hooking into Plex's start
   script or editing files over SSH.
 - **Settings page** right on the app's page (Apps → Tailscale), no extra click:
-  - connect with an **auth key** (used once, never stored) or with a
+  - connect with an **auth key** (handed to Tailscale through a root-only
+    temporary file that is deleted right after login) or with a
     **browser login link**
   - see status: Tailscale IP, machine name, tailnet, health warnings
   - change **machine name**, **accept routes**, **MagicDNS**, **advertise
     routes**, **Tailscale SSH**, **exit node** (only on models whose kernel
     has a NAT table; the page tells you), plus free-form extra flags
-  - **update the Tailscale binaries in place** when a new release is out, with
-    checksum verification and one-click **roll back** to the previous version.
+  - **update the Tailscale binaries in place** when a new release is out
+    (HTTPS only, SHA-256 checked against the checksum pkgs.tailscale.com
+    publishes) and one-click **roll back** to the previous version.
     You never need to reinstall the app for a Tailscale update.
   - **update notifications** through the My Cloud alert system (bell icon, and
     e-mail if alert e-mails are configured under Settings → Notifications):
@@ -34,7 +36,8 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
 ## Install
 
 1. Download the `.bin` for your model from the
-   [latest release](https://github.com/la32094uf/mycloud-tailscale/releases).
+   [latest release](https://github.com/la32094uf/mycloud-tailscale/releases)
+   (`SHA256SUMS` is published next to the files).
 2. My Cloud dashboard → **Apps** → **Install an app manually** → pick the file.
 3. Open **Apps → Tailscale**. The first start downloads the Tailscale binaries
    (~30 MB) in the background; the page shows the progress. Then paste an auth
@@ -64,6 +67,14 @@ still listed there. Installing a newer app package over the existing one keeps
   name from other devices.
 - The dashboard's **Run App** switch stops and starts the daemon too. Note that
   an app switched off there does not start at boot.
+- Once connected, everything the NAS serves (the dashboard on port 80/443,
+  SMB, Plex, ...) is reachable from your tailnet. Use Tailscale ACLs to limit
+  who may reach those ports.
+- On OS5 the apps folder `Nas_Prog` is world-writable, so any local user with
+  a shell could tamper with any app's files. This app refuses to start binaries
+  that are not root-owned and root-only, and sets its own data aside if it
+  finds it replaced, but the app folder itself is the platform's responsibility.
+  By default only the `sshd` user can log in over SSH on OS5.
 - Update notifications use alert code 1501 ("App Update Available") of the
   firmware. E-mails go to the addresses under Settings → Notifications; the
   "Send test alert" button checks the whole chain.

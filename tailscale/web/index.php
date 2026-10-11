@@ -5,7 +5,7 @@
 $v = '0';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpath(__FILE__))) . '/apkg.rc'), $m)) $v = $m[1];
 ?>
-<script>(function(){if(!document.getElementById('ts-css')){var l=document.createElement('link');l.id='ts-css';l.rel='stylesheet';l.href='/apps/tailscale/tailscale.css?v=<?php echo htmlspecialchars($v); ?>';document.head.appendChild(l);}})();</script>
+<script>(function(){if(!document.getElementById('ts-css')){var l=document.createElement('link');l.id='ts-css';l.rel='stylesheet';l.href='/apps/tailscale/tailscale.css?v='+<?php echo json_encode(rawurlencode($v)); ?>;document.head.appendChild(l);}})();</script>
 <div id="ts-app">
   <div class="ts-row">
     <div class="ts-card" id="ts-status-card">
@@ -28,7 +28,7 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
 
     <div class="ts-card" id="ts-login-card">
       <h3>Login</h3>
-      <p class="ts-help">Create a key at <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" rel="noopener">Tailscale admin → Settings → Keys</a> and paste it here. The key is used once and never stored on the NAS.</p>
+      <p class="ts-help">Create a key at <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" rel="noopener">Tailscale admin → Settings → Keys</a> and paste it here. The key is written to a root-only temporary file during login and deleted right after; it is not kept.</p>
       <div class="ts-field">
         <input type="password" id="ts-authkey" placeholder="tskey-auth-…" autocomplete="off" spellcheck="false">
         <button class="ts-btn ts-primary" id="ts-login-btn">Connect with auth key</button>
@@ -108,4 +108,4 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
   <div id="ts-toast"></div>
   <p class="ts-footer">Tailscale app <span id="ts-app-version"></span> · <a href="https://github.com/la32094uf/mycloud-tailscale" target="_blank" rel="noopener">github.com/la32094uf/mycloud-tailscale</a></p>
 </div>
-<script src="/apps/tailscale/tailscale.js?v=<?php echo htmlspecialchars($v); ?>"></script>
+<script src="/apps/tailscale/tailscale.js?v=<?php echo rawurlencode($v); ?>"></script>

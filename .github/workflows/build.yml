@@ -62,7 +62,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tailscale-apkg
-          path: packages/*.bin
+          path: |
+            packages/*.bin
+            packages/SHA256SUMS
           if-no-files-found: error
 
   release:
@@ -78,5 +80,7 @@ jobs:
           path: packages
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          files: packages/*.bin
+          files: |
+            packages/*.bin
+            packages/SHA256SUMS
           generate_release_notes: true

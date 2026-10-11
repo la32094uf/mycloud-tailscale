@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.5';
+$APP_VERSION = '1.0.6';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -69,13 +69,16 @@ function read_settings() {
 }
 function write_settings($s) {
     global $SETTINGS, $CONF_DIR;
-    if (!is_dir($CONF_DIR)) mkdir($CONF_DIR, 0755, true);
+    if (!is_dir($CONF_DIR)) mkdir($CONF_DIR, 0700, true);
     $txt = "# Tailscale app settings. Edit via the settings page; KEY=VALUE, no quotes.\n";
     foreach ($s as $k => $v) $txt .= "$k=$v\n";
-    return file_put_contents($SETTINGS, $txt) !== false;
+    $tmp = $SETTINGS . '.tmp.' . getmypid();
+    if (file_put_contents($tmp, $txt) === false) return false;
+    chmod($tmp, 0600);
+    return rename($tmp, $SETTINGS);
 }
 
-$action = $_REQUEST['action'] ?? 'status';
+$action = $_GET['action'] ?? 'status';
 $mutating = !in_array($action, ['status', 'settings', 'check_update', 'update_status', 'login_url_poll', 'log', 'notify_status'], true);
 if ($mutating) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
@@ -85,7 +88,13 @@ if ($mutating) {
     $src = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '';
     $srcHost = $src === '' ? '' : (string)parse_url($src, PHP_URL_HOST);
     $host = (string)preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? '');
-    if ($srcHost === '' || strcasecmp($srcHost, $host) !== 0) fail('cross-origin request refused', 403);
+    $host = trim($host, '[]');
+    if ($srcHost === '' || strcasecmp(trim($srcHost, '[]'), $host) !== 0) fail('cross-origin request refused', 403);
+    // DNS rebinding: Host and Origin both carry the attacker's name then. Only accept
+    // names that really are this NAS: one of its addresses or its own hostname.
+    $ownNames = array_filter([$_SERVER['SERVER_ADDR'] ?? '', strtolower((string)gethostname())]);
+    $bare = strtolower(preg_replace('/\..*$/', '', $host));   // "mycloud.lan" -> "mycloud"
+    if (!in_array(strtolower($host), array_map('strtolower', $ownNames), true) && !in_array($bare, $ownNames, true)) fail('request not addressed to this NAS', 403);
 }
 
 switch ($action) {
@@ -103,7 +112,7 @@ switch ($action) {
 
     case 'login':
         $key = trim($_POST['authkey'] ?? '');
-        if (!preg_match('/^tskey-[A-Za-z0-9_-]{10,200}$/', $key)) fail('That does not look like a Tailscale auth key (tskey-…).');
+        if (!preg_match('/^tskey-[A-Za-z0-9_-]{10,200}$/D', $key)) fail('That does not look like a Tailscale auth key (tskey-…).');
         // Handed to the ctl script in its environment; it writes the key to a 0600 file
         // and passes --auth-key=file:... so the key never appears in the process list.
         [$rc, $o] = ctl(['login'], 150, ['TS_AUTHKEY' => $key]);
@@ -135,10 +144,10 @@ switch ($action) {
                 case 'TS_ACCEPT_ROUTES': case 'TS_ADVERTISE_EXIT_NODE': case 'TS_ACCEPT_DNS': case 'TS_SSH':
                     $v = in_array(strtolower($v), ['1', 'true', 'on', 'yes'], true) ? '1' : '0'; break;
                 case 'TS_HOSTNAME':
-                    if ($v !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/', $v)) fail('Machine name may only contain letters, digits and dashes.'); break;
+                    if ($v !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/D', $v)) fail('Machine name may only contain letters, digits and dashes.'); break;
                 case 'TS_ADVERTISE_ROUTES':
                     $v = preg_replace('/\s+/', '', $v);
-                    if ($v !== '' && !preg_match('#^([0-9a-fA-F:.]+/\d{1,3})(,[0-9a-fA-F:.]+/\d{1,3})*$#', $v)) fail('Advertise routes must be CIDRs separated by commas, e.g. 192.168.1.0/24');
+                    if ($v !== '' && !preg_match('#^([0-9a-fA-F:.]+/\d{1,3})(,[0-9a-fA-F:.]+/\d{1,3})*$#D', $v)) fail('Advertise routes must be CIDRs separated by commas, e.g. 192.168.1.0/24');
                     break;
                 case 'TS_CHANNEL':
                     if (!in_array($v, ['stable', 'unstable'], true)) $v = 'stable'; break;
@@ -147,9 +156,9 @@ switch ($action) {
                 case 'TS_EXTRA_UP_ARGS': case 'TS_EXTRA_DAEMON_ARGS':
                     // Flags only, space separated, no shell metacharacters or line breaks.
                     $v = trim(preg_replace('/[ \t]+/', ' ', $v));
-                    if ($v !== '' && !preg_match('/^-{1,2}[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*( -{1,2}[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*)*$/', $v)) fail("Extra flags may only contain --flag=value pairs separated by spaces, no shell characters.");
+                    if ($v !== '' && !preg_match('/^-{1,2}[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*( -{1,2}[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*)*$/D', $v)) fail("Extra flags may only contain --flag=value pairs separated by spaces, no shell characters.");
                     // Flags the app sets itself, or that would persist a key in plain text.
-                    if (preg_match('/(^| )--?(socket|state|statedir|tun|auth-?key|authkey|reset|timeout)(=|$| )/', $v)) fail("That flag is managed by the app and cannot be overridden here.");
+                    if (preg_match('/(^| )--?(socket|state|statedir|tun|auth-?key|authkey|reset|timeout|config)(=|$| )/', $v)) fail("That flag is managed by the app and cannot be overridden here.");
                     break;
             }
             $cur[$k] = $v;
@@ -168,7 +177,7 @@ switch ($action) {
 
     case 'update':
         $ver = trim($_POST['version'] ?? '');
-        if ($ver !== '' && !preg_match('/^\d+\.\d+\.\d+$/', $ver)) fail('Invalid version');
+        if ($ver !== '' && !preg_match('/^\d+\.\d+\.\d+$/D', $ver)) fail('Invalid version');
         [$rc, $o] = ctl($ver === '' ? ['update-bg'] : ['update-bg', $ver], 20);
         out(['ok' => $rc === 0, 'output' => $o]);
 
