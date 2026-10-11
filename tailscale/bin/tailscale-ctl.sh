@@ -70,8 +70,14 @@ load_settings() {
 }
 bool() { case "$1" in 1|true|yes|on) echo true ;; *) echo false ;; esac; }
 
+# WD's kernels ship without the iptables 'nat' table. Tailscale would then log
+# a health warning on every start, so tell it not to touch netfilter at all.
+# Consequence: no exit node and no SNAT for subnet routes on such devices.
+have_nat() { iptables -t nat -L -n >/dev/null 2>&1; }
+
 # Flags shared by 'tailscale up' and 'tailscale set'
 pref_flags() {
+    have_nat || printf -- '--netfilter-mode=off --snat-subnet-routes=false '
     printf -- '--accept-routes=%s ' "$(bool "$TS_ACCEPT_ROUTES")"
     printf -- '--accept-dns=%s ' "$(bool "$TS_ACCEPT_DNS")"
     printf -- '--advertise-exit-node=%s ' "$(bool "$TS_ADVERTISE_EXIT_NODE")"
@@ -148,12 +154,13 @@ cmd_status() {
     # Machine-readable status for the settings page.
     running=false; is_running && running=true
     tun=false; have_tun && tun=true
+    nat=false; have_nat && nat=true
     ver="$(installed_version)"; prev="$(prev_version)"
     st='{}'
     if $running && [ -x "$TS" ]; then st="$("$TS" --socket="$SOCK" status --json 2>/dev/null || echo '{}')"; fi
     [ -z "$st" ] && st='{}'
-    printf '{"daemon_running":%s,"tun":%s,"arch":"%s","installed_version":"%s","previous_version":"%s","conf_dir":"%s","app_dir":"%s","status":%s}\n' \
-        "$running" "$tun" "$(ts_arch)" "$ver" "$prev" "$CONF_DIR" "$APP_DIR" "$st"
+    printf '{"daemon_running":%s,"tun":%s,"nat":%s,"arch":"%s","installed_version":"%s","previous_version":"%s","conf_dir":"%s","app_dir":"%s","status":%s}\n' \
+        "$running" "$tun" "$nat" "$(ts_arch)" "$ver" "$prev" "$CONF_DIR" "$APP_DIR" "$st"
 }
 cmd_login() {
     key="$1"

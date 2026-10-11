@@ -36,6 +36,17 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
 
 Your NAS needs internet access for the download and for Tailscale itself.
 
+## Limitations
+
+- WD's kernels ship without the iptables `nat` table and without loadable
+  modules. The app detects this and runs Tailscale with `--netfilter-mode=off`
+  (otherwise every start logs a health warning). Consequences on such devices:
+  **exit node is not possible**, and advertised subnet routes work only without
+  SNAT, so your router needs a static route for `100.64.0.0/10` pointing at the
+  NAS. Plain device-to-device access to the NAS works fine.
+- Tested on a My Cloud EX2 Ultra (OS 5.33). The other models are built from the
+  same source but have not been tried; reports welcome.
+
 ## Where things live on the NAS
 
 ```

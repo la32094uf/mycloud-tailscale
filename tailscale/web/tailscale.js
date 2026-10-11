@@ -63,7 +63,12 @@
       $('ts-ip').textContent = (st.TailscaleIPs || []).join(', ') || '–';
       $('ts-dns').textContent = self.DNSName ? self.DNSName.replace(/\.$/, '') : (self.HostName || '–');
       $('ts-tailnet').textContent = (st.CurrentTailnet && st.CurrentTailnet.Name) || (st.MagicDNSSuffix || '–');
-      $('ts-daemon').textContent = (s.daemon_running ? 'running' : 'stopped') + (s.tun ? ' · kernel TUN' : ' · userspace networking') + ' · ' + s.arch;
+      $('ts-daemon').textContent = (s.daemon_running ? 'running' : 'stopped') + (s.tun ? ' · kernel TUN' : ' · userspace networking') + (s.nat === false ? ' · no NAT table' : '') + ' · ' + s.arch;
+      var exitEl = form.elements['TS_ADVERTISE_EXIT_NODE'];
+      if (s.nat === false) {
+        exitEl.checked = false; exitEl.disabled = true;
+        $('ts-nat-note').style.display = '';
+      }
       $('ts-version').textContent = s.installed_version || 'not installed yet (press Start to download)';
       var health = (st.Health || []).filter(Boolean);
       $('ts-health').innerHTML = health.length ? '<span class="ts-warn">' + health.map(esc).join('<br>') + '</span>' : (state === 'Running' ? 'OK' : '–');
@@ -126,8 +131,9 @@
       .then(function () { busy(false); return loadStatus(); });
   });
 
-  // ---- settings ---------------------------------------------------------
   var form = $('ts-settings-form');
+
+  // ---- settings ---------------------------------------------------------
   function loadSettings() {
     return api('settings').then(function (r) {
       Object.keys(r.settings).forEach(function (k) {

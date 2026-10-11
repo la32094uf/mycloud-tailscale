@@ -3,7 +3,7 @@
 // fragment inside the My Cloud dashboard, so this file has no <html>/<head>.
 // Access is protected by the My Cloud login (Apache returns 403 otherwise).
 ?>
-<link rel="stylesheet" href="/apps/tailscale/tailscale.css?v=1.0.1">
+<link rel="stylesheet" href="/apps/tailscale/tailscale.css?v=1.0.2">
 <div id="ts-app">
   <div class="ts-row">
     <div class="ts-card" id="ts-status-card">
@@ -51,6 +51,7 @@
         <label><input type="checkbox" name="TS_ADVERTISE_EXIT_NODE"> Advertise this NAS as exit node</label>
         <label><input type="checkbox" name="TS_SSH"> Enable Tailscale SSH</label>
         <label>Advertise routes <input type="text" name="TS_ADVERTISE_ROUTES" placeholder="192.168.1.0/24,10.0.0.0/8"></label>
+        <p class="ts-help" id="ts-nat-note" style="display:none">This NAS kernel has no iptables NAT table, so Tailscale runs with <code>--netfilter-mode=off</code>: exit node is not possible, and advertised subnet routes work only without SNAT (your router needs a static route for 100.64.0.0/10 to this NAS).</p>
         <details>
           <summary>Advanced</summary>
           <label>Extra <code>tailscale up</code> flags <input type="text" name="TS_EXTRA_UP_ARGS" placeholder="--operator=… --netfilter-mode=off"></label>
@@ -89,4 +90,4 @@
   <div id="ts-toast"></div>
   <p class="ts-footer">Tailscale app <span id="ts-app-version"></span> · <a href="https://github.com/la32094uf/mycloud-tailscale" target="_blank" rel="noopener">github.com/la32094uf/mycloud-tailscale</a></p>
 </div>
-<script src="/apps/tailscale/tailscale.js?v=1.0.1"></script>
+<script src="/apps/tailscale/tailscale.js?v=1.0.2"></script>
