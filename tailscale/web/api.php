@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.8';
+$APP_VERSION = '1.0.9';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -56,6 +56,25 @@ function ctl($args, $timeout = 120, $env = []) {
     return [$rc, trim($out)];
 }
 
+function own_names() {
+    $names = [strtolower((string)($_SERVER['SERVER_ADDR'] ?? '')), strtolower((string)gethostname()), 'localhost', '127.0.0.1', '::1'];
+    exec('ip -o addr 2>/dev/null', $lines);
+    foreach ($lines as $l) {
+        if (preg_match('/\binet6?\s+([0-9a-fA-F:.]+)/', $l, $m)) $names[] = strtolower($m[1]);
+    }
+    return array_values(array_filter(array_unique($names)));
+}
+function host_matches($host) {
+    $host = strtolower($host);
+    $names = own_names();
+    if (in_array($host, $names, true)) return true;
+    // "mycloud.lan", "mycloud.local", "mycloud.tailxxxx.ts.net": hostname plus a local or
+    // tailnet suffix only, so an attacker-registered "mycloud.evil.example" does not pass.
+    if (!preg_match('/^([^.]+)\.(.+)$/', $host, $m) || !in_array($m[1], $names, true)) return false;
+    $suffix = $m[2];
+    $local = ['lan', 'local', 'localdomain', 'home', 'home.arpa', 'internal', 'fritz.box'];
+    return in_array($suffix, $local, true) || (bool)preg_match('/^[a-z0-9-]+\.ts\.net$/', $suffix);
+}
 function read_settings() {
     global $SETTINGS, $SETTING_KEYS, $APP_DIR;
     $file = file_exists($SETTINGS) ? $SETTINGS : $APP_DIR . '/settings.conf.default';
@@ -91,10 +110,10 @@ if ($mutating) {
     $host = trim($host, '[]');
     if ($srcHost === '' || strcasecmp(trim($srcHost, '[]'), $host) !== 0) fail('cross-origin request refused', 403);
     // DNS rebinding: Host and Origin both carry the attacker's name then. Only accept
-    // names that really are this NAS: one of its addresses or its own hostname.
-    $ownNames = array_filter([$_SERVER['SERVER_ADDR'] ?? '', strtolower((string)gethostname())]);
-    $bare = strtolower(preg_replace('/\..*$/', '', $host));   // "mycloud.lan" -> "mycloud"
-    if (!in_array(strtolower($host), array_map('strtolower', $ownNames), true) && !in_array($bare, $ownNames, true)) fail('request not addressed to this NAS', 403);
+    // names that really are this NAS: any of its interface addresses (LAN, Tailscale)
+    // or its hostname. Note: the dashboard proxies to Apache on 127.0.0.1, so
+    // SERVER_ADDR alone is not enough.
+    if (!host_matches($host)) fail('request not addressed to this NAS', 403);
 }
 
 switch ($action) {
