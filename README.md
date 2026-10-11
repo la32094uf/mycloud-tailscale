@@ -24,10 +24,13 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
     You never need to reinstall the app for a Tailscale update.
   - **update notifications** through the My Cloud alert system (bell icon, and
     e-mail if alert e-mails are configured under Settings → Notifications):
-    a reminder at the chosen interval while an update is available (daily,
-    weekly, monthly or off), and an immediate alert when Tailscale has
+    a reminder at the chosen interval while a Tailscale update is available
+    (daily, weekly, monthly or off), an immediate alert when Tailscale has
     published a new [security bulletin](https://tailscale.com/security-bulletins/)
-    and an update is available
+    and an update is available, a daily alert when the NAS has dropped off the
+    tailnet (logged out or machine key expired) or the machine key expires
+    within a week, and an alert when a newer version of this app is on GitHub.
+    The page shows the same things as a banner at the top.
   - the page also checks GitHub for a **newer version of this app** and the
     same alert tells you when one is out; installing the new `.bin` over the
     old one keeps your settings and login

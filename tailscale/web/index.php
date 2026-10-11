@@ -7,6 +7,7 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
 ?>
 <script>(function(){if(!document.getElementById('ts-css')){var l=document.createElement('link');l.id='ts-css';l.rel='stylesheet';l.href='/apps/tailscale/tailscale.css?v='+<?php echo json_encode(rawurlencode($v)); ?>;document.head.appendChild(l);}})();</script>
 <div id="ts-app">
+  <div id="ts-banner" class="ts-banner" style="display:none"></div>
   <div class="ts-row">
     <div class="ts-card" id="ts-status-card">
       <h3>Status <span id="ts-state" class="ts-badge ts-gray">loading…</span></h3>

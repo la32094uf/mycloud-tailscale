@@ -75,6 +75,7 @@
       $('ts-upd-current').textContent = s.installed_version || '–';
       $('ts-upd-prev').textContent = s.previous_version || '–';
       $('ts-rollback-btn').disabled = !s.previous_version;
+      loginBanner(s);
       return s;
     }).catch(function (e) { toast(e.message, true); });
   }
@@ -213,7 +214,7 @@
     return api('notify_status').then(function (r) {
       $('ts-notify').value = r.mode || 'monthly';
       var info = 'Last check: ' + fmtTs(r.last_check) + ' · last alert: ' + fmtTs(r.last_notified) + (r.last_notified_version ? ' (for ' + r.last_notified_version + ')' : '') +
-        ' · newest bulletin seen: ' + (r.last_bulletin || '–') + (r.loop_running ? '' : ' · scheduler not running (start the app)') +
+        ' · newest bulletin seen: ' + (r.last_bulletin || '–') + (r.key_days_left !== '' ? ' · machine key expires in ' + r.key_days_left + ' days' : '') + (r.loop_running ? '' : ' · scheduler not running (start the app)') +
         (r.alert_tool ? '' : ' · this firmware has no alert tool');
       $('ts-notify-info').textContent = info;
     }).catch(function (e) { $('ts-notify-info').textContent = e.message; });
@@ -244,14 +245,43 @@
   }
   $('ts-log-btn').addEventListener('click', loadLog);
 
+  // ---- banner (login problems, key expiry, app update) ------------------
+  var bannerParts = {};
+  function renderBanner() {
+    var b = $('ts-banner'); var keys = Object.keys(bannerParts);
+    if (!keys.length) { b.style.display = 'none'; b.innerHTML = ''; return; }
+    var red = keys.some(function (k) { return bannerParts[k].red; });
+    b.className = 'ts-banner' + (red ? ' ts-banner-red' : '');
+    b.innerHTML = keys.map(function (k) { return '<div>' + bannerParts[k].html + '</div>'; }).join('');
+    b.style.display = '';
+  }
+  function setBanner(key, html, red) { if (html) bannerParts[key] = { html: html, red: !!red }; else delete bannerParts[key]; renderBanner(); }
+
+  function loginBanner(s) {
+    var st = s.status || {}; var self = st.Self || {};
+    var state = s.daemon_running ? (st.BackendState || '') : 'Stopped';
+    if (state === 'NeedsLogin') {
+      setBanner('login', '<strong>Tailscale is logged out.</strong> This NAS is not reachable through your tailnet until you log in again: paste a new auth key below or use the browser login link. If you did not log out yourself, the machine key has probably expired (see the Login section).', true);
+    } else if (state === 'NeedsMachineAuth') {
+      setBanner('login', '<strong>Waiting for approval.</strong> Approve this machine in the Tailscale admin console (Machines) to finish connecting.', false);
+    } else if (state === 'Running' && self.KeyExpiry) {
+      var days = (new Date(self.KeyExpiry) - new Date()) / 86400000;
+      if (days < 14) {
+        setBanner('login', '<strong>Machine key expires ' + (days < 1 ? 'today' : 'in ' + Math.floor(days) + ' days') + '</strong> (' + esc(new Date(self.KeyExpiry).toLocaleDateString()) + '). After that the NAS drops off your tailnet until you log in again. To avoid this, open the machine in the <a href="https://login.tailscale.com/admin/machines" target="_blank" rel="noopener">Tailscale admin console</a> and choose "Disable key expiry", or log in again with a new auth key.', days < 3);
+      } else setBanner('login', null);
+    } else setBanner('login', null);
+  }
+
   // ---- app (package) update -------------------------------------------
   function checkAppUpdate() {
     api('check_app_update').then(function (r) {
       var el = $('ts-app-update');
       if (r.update_available) {
-        el.innerHTML = '<strong class="ts-warn">App update available: ' + esc(r.latest) + '</strong> · <a href="' + esc(r.url) + '" target="_blank" rel="noopener">download</a> and install it via Apps → Install an app manually (settings and login are kept)';
+        el.textContent = 'newer app version available: ' + r.latest;
+        setBanner('app', '<strong>New version of this app: ' + esc(r.latest) + '</strong> (you have ' + esc(r.installed) + '). <a href="' + esc(r.url) + '" target="_blank" rel="noopener">Download the .bin for your model</a>, then install it via Apps → Install an app manually. Your login and settings are kept.', false);
       } else {
         el.textContent = 'app is up to date';
+        setBanner('app', null);
       }
     }).catch(function (e) { $('ts-app-update').textContent = 'app update check: ' + e.message; });
   }

@@ -505,11 +505,43 @@ latest_bulletin() { # id of the first <item> (newest) in Tailscale's security bu
     fetch "$BULLETIN_FEED" "$TMP_DIR/bulletins.xml" || return 1
     sed -n '/<item>/,/<\/item>/p' "$TMP_DIR/bulletins.xml" | sed -n 's/.*<title>[^<]*\(TS-[0-9][0-9]*-[0-9][0-9]*\)<\/title>.*/\1/p' | head -1
 }
+# Self.KeyExpiry from 'tailscale status --json' as epoch seconds (empty if unknown)
+key_expiry_epoch() {
+    [ -x "$TS" ] && is_running || return 1
+    iso="$("$TS" --socket="$SOCK" status --json 2>/dev/null | sed -n '/"Self": {/,/^  }/p' | sed -n 's/.*"KeyExpiry": *"\([0-9T:Z-]*\)".*/\1/p' | head -1)"
+    [ -n "$iso" ] || return 1
+    date -D "%Y-%m-%dT%H:%M:%SZ" -d "$iso" +%s 2>/dev/null
+}
+# Daily alerts about the login itself: logged out / key expired, or key expiring soon.
+notify_login_check() {
+    now="$1"
+    [ -x "$TS" ] && is_running || return 0
+    state="$(backend_state)"
+    if [ "$state" = Running ]; then
+        notify_state_set LAST_CONNECTED "$now"
+        exp="$(key_expiry_epoch)" || return 0
+        left=$(( (exp - now) / 86400 ))
+        [ "$left" -le 7 ] || return 0
+        last="$(num "$(notify_state LAST_EXPIRY_NOTIFIED)")"
+        [ $((now - last)) -ge 86400 ] || return 0
+        send_alert "Tailscale on this NAS: the machine key expires in $left day(s). After that the NAS drops off your tailnet until you log in again. Open Apps > Tailscale and log in with a new auth key, or choose 'Disable key expiry' for this machine in the Tailscale admin console." \
+            && notify_state_set LAST_EXPIRY_NOTIFIED "$now" && log "notified: key expires in $left days"
+        return 0
+    fi
+    # Not connected. Only nag when it was connected before (a fresh install is not an outage).
+    [ -n "$(notify_state LAST_CONNECTED)" ] || return 0
+    case "$state" in NeedsLogin|NeedsMachineAuth) ;; *) return 0 ;; esac
+    last="$(num "$(notify_state LAST_LOGIN_NOTIFIED)")"
+    [ $((now - last)) -ge 86400 ] || return 0
+    send_alert "Tailscale on this NAS is logged out ($state): the machine key has expired or the node was logged out, so the NAS is not reachable through your tailnet. Open Apps > Tailscale and log in again with a new auth key or the browser login link." \
+        && notify_state_set LAST_LOGIN_NOTIFIED "$now" && log "notified: logged out ($state)"
+}
 cmd_notify_check() {
     load_settings
     now="$(date +%s)"
     notify_state_set LAST_CHECK "$now"
     [ "$TS_NOTIFY" = off ] && { echo "notifications off"; return 0; }
+    notify_login_check "$now"
     cur="$(installed_version)"; lat="$(latest_version)"
     [ -z "$lat" ] && { echo "could not fetch latest version"; return 1; }
     bulletin="$(latest_bulletin)"; last_bulletin="$(notify_state LAST_BULLETIN)"
@@ -549,8 +581,9 @@ cmd_notify_test() {
 }
 cmd_notify_status() {
     load_settings
-    printf '{"mode":"%s","loop_running":%s,"last_check":"%s","last_notified":"%s","last_notified_version":"%s","last_bulletin":"%s","alert_tool":%s}\n' \
-        "$TS_NOTIFY" "$(notify_loop_pid >/dev/null && echo true || echo false)" "$(notify_state LAST_CHECK)" "$(notify_state LAST_NOTIFIED)" "$(notify_state LAST_NOTIFIED_VERSION)" "$(notify_state LAST_BULLETIN)" "$(command -v fireAlert >/dev/null 2>&1 && echo true || echo false)"
+    exp="$(key_expiry_epoch 2>/dev/null)"; left=""; [ -n "$exp" ] && left=$(( (exp - $(date +%s)) / 86400 ))
+    printf '{"mode":"%s","loop_running":%s,"last_check":"%s","last_notified":"%s","last_notified_version":"%s","last_bulletin":"%s","last_app_notified":"%s","last_connected":"%s","key_expiry":"%s","key_days_left":"%s","alert_tool":%s}\n' \
+        "$TS_NOTIFY" "$(notify_loop_pid >/dev/null && echo true || echo false)" "$(notify_state LAST_CHECK)" "$(notify_state LAST_NOTIFIED)" "$(notify_state LAST_NOTIFIED_VERSION)" "$(notify_state LAST_BULLETIN)" "$(notify_state LAST_APP_NOTIFIED)" "$(notify_state LAST_CONNECTED)" "$exp" "$left" "$(command -v fireAlert >/dev/null 2>&1 && echo true || echo false)"
 }
 
 case "${1:-}" in

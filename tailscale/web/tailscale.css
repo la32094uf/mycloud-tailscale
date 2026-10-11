@@ -40,3 +40,8 @@
 #ts-toast.ts-error { background: #c0392b; }
 #ts-app h3.ts-sub { font-size: 15px; margin-top: 16px; }
 #ts-app .ts-inline-label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+#ts-app .ts-banner { background: #fff4d6; border: 1px solid #e3b23c; border-left: 6px solid #e08a1e; border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; font-size: 15px; color: #5a4200; }
+#ts-app .ts-banner.ts-banner-red { background: #fde8e8; border-color: #d9534f; border-left-color: #c0392b; color: #5f1b17; }
+#ts-app .ts-banner strong { font-size: 16px; }
+#ts-app .ts-banner a { color: inherit; font-weight: bold; }
+#ts-app .ts-banner .ts-btn { margin-left: 8px; }
