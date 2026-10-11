@@ -487,10 +487,16 @@ cmd_notify_loop() {
     done
 }
 send_alert() { # send_alert "text"  (leading space: the firmware pastes %1 right after a full stop)
+    # The firmware silently drops the text when it is longer than 124 characters
+    # or contains < > &, so keep messages short and plain.
+    msg="$(printf '%s' "$1" | tr -d '<>&' | tr -s ' ' | cut -c1-120)"
     if command -v fireAlert >/dev/null 2>&1; then
-        fireAlert -a "$ALERT_CODE_APP_UPDATE" -p " $1" -f
+        # The firmware merges repeated alerts with the same code and then drops the
+        # new text, so clear our previous one first: the newest message wins.
+        fireAlert -a "$ALERT_CODE_APP_UPDATE" -x >/dev/null 2>&1
+        fireAlert -a "$ALERT_CODE_APP_UPDATE" -p " $msg" -f
     elif command -v sendAlert.sh >/dev/null 2>&1; then
-        sendAlert.sh "$ALERT_CODE_APP_UPDATE" " $1"
+        sendAlert.sh "$ALERT_CODE_APP_UPDATE" " $msg"
     else
         log "no alert tool on this firmware: $1"; return 1
     fi
@@ -524,7 +530,7 @@ notify_login_check() {
         [ "$left" -le 7 ] || return 0
         last="$(num "$(notify_state LAST_EXPIRY_NOTIFIED)")"
         [ $((now - last)) -ge 86400 ] || return 0
-        send_alert "Tailscale on this NAS: the machine key expires in $left day(s). After that the NAS drops off your tailnet until you log in again. Open Apps > Tailscale and log in with a new auth key, or choose 'Disable key expiry' for this machine in the Tailscale admin console." \
+        send_alert "Tailscale: machine key of this NAS expires in $left day(s). Log in again via Apps / Tailscale or disable key expiry." \
             && notify_state_set LAST_EXPIRY_NOTIFIED "$now" && log "notified: key expires in $left days"
         return 0
     fi
@@ -533,7 +539,7 @@ notify_login_check() {
     case "$state" in NeedsLogin|NeedsMachineAuth) ;; *) return 0 ;; esac
     last="$(num "$(notify_state LAST_LOGIN_NOTIFIED)")"
     [ $((now - last)) -ge 86400 ] || return 0
-    send_alert "Tailscale on this NAS is logged out ($state): the machine key has expired or the node was logged out, so the NAS is not reachable through your tailnet. Open Apps > Tailscale and log in again with a new auth key or the browser login link." \
+    send_alert "Tailscale on this NAS is logged out ($state). Log in again via Apps / Tailscale on the dashboard." \
         && notify_state_set LAST_LOGIN_NOTIFIED "$now" && log "notified: logged out ($state)"
 }
 cmd_notify_check() {
@@ -555,7 +561,7 @@ cmd_notify_check() {
     if [ -n "$alat" ] && version_gt "$alat" "$acur"; then
         alast="$(num "$(notify_state LAST_APP_NOTIFIED)")"
         if [ $((now - alast)) -ge "$interval" ] || [ "$(notify_state LAST_APP_NOTIFIED_VERSION)" != "$alat" ]; then
-            if send_alert "Tailscale app $acur -> $alat is available. Download the .bin for your model from $APP_RELEASES_URL and install it with Apps > Install an app manually (your settings and login are kept)."; then
+            if send_alert "Tailscale app $alat is out (you have $acur). See Apps / Tailscale on the dashboard for the download link."; then
                 notify_state_set LAST_APP_NOTIFIED "$now"; notify_state_set LAST_APP_NOTIFIED_VERSION "$alat"; log "notified app update $acur -> $alat"
             fi
         fi
@@ -563,11 +569,11 @@ cmd_notify_check() {
     if [ "$lat" = "$cur" ]; then echo "up to date ($cur)"; return 0; fi
     last_at="$(num "$(notify_state LAST_NOTIFIED)")"
     reason=""
-    if $new_bulletin; then reason="Tailscale published security bulletin $bulletin"
-    elif [ $((now - last_at)) -ge "$interval" ]; then reason="reminder, $TS_NOTIFY"
+    if $new_bulletin; then reason="Security bulletin $bulletin."
+    elif [ $((now - last_at)) -ge "$interval" ]; then reason="Reminder ($TS_NOTIFY)."
     fi
     [ -z "$reason" ] && { echo "update $cur -> $lat available, reminder not due yet"; return 0; }
-    text="Tailscale ${cur:-?} -> $lat is available for this NAS. Open Apps > Tailscale and press Update now. ($reason)"
+    text="Tailscale $lat is out (NAS has ${cur:-?}). Open Apps / Tailscale and press Update now. $reason"
     if send_alert "$text"; then
         notify_state_set LAST_NOTIFIED "$now"; notify_state_set LAST_NOTIFIED_VERSION "$lat"
         [ -n "$bulletin" ] && notify_state_set LAST_BULLETIN "$bulletin"
@@ -577,7 +583,7 @@ cmd_notify_check() {
     fi
 }
 cmd_notify_test() {
-    send_alert "Tailscale app: test notification from the settings page. Installed: $(installed_version). If you can read this in your mailbox, update alerts work." && echo "test alert sent"
+    send_alert "Tailscale app test alert (not an update). If you read this in your mailbox the alerts work." && echo "test alert sent"
 }
 cmd_notify_status() {
     load_settings
