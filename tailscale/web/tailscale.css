@@ -1,8 +1,10 @@
 /* Tailscale app settings page, styled to sit inside the My Cloud OS5 dashboard. */
-#ts-app { font-family: Helvetica, Arial, sans-serif; color: #4b5a68; font-size: 14px; max-width: 1100px; }
+/* Single column: the dashboard embeds this in a table cell with no fixed width, so
+   anything wider than the content area would just push the table off-screen. */
+#ts-app { font-family: Helvetica, Arial, sans-serif; color: #4b5a68; font-size: 14px; width: 100%; max-width: 820px; min-width: 0; }
 #ts-app * { box-sizing: border-box; }
-#ts-app .ts-row { display: flex; flex-wrap: wrap; gap: 16px; }
-#ts-app .ts-card { flex: 1 1 420px; background: #fff; border: 1px solid #d9dee3; border-radius: 4px; padding: 16px 18px; margin-bottom: 16px; }
+#ts-app .ts-row { display: block; }
+#ts-app .ts-card { display: block; background: #fff; border: 1px solid #d9dee3; border-radius: 4px; padding: 16px 18px; margin-bottom: 16px; }
 #ts-app h3 { margin: 0 0 12px; font-size: 18px; font-weight: normal; color: #0e6eb8; display: flex; align-items: center; gap: 10px; }
 #ts-app .ts-kv { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
 #ts-app .ts-kv th { text-align: left; font-weight: normal; color: #7a8794; width: 130px; padding: 4px 0; vertical-align: top; }

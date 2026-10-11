@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Shown on the app page inside the My Cloud dashboard (app_menu.js get_app_desc). -->
 <desc>
-  <en-US><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <en-US><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -12,7 +12,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></en-US>
-  <fr-FR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <fr-FR><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -23,7 +23,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></fr-FR>
-  <it-IT><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <it-IT><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -34,7 +34,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></it-IT>
-  <de-DE><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <de-DE><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -45,7 +45,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></de-DE>
-  <es-ES><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <es-ES><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -56,7 +56,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></es-ES>
-  <zh-CN><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <zh-CN><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -67,7 +67,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></zh-CN>
-  <zh-TW><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <zh-TW><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -78,7 +78,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></zh-TW>
-  <ko-KR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <ko-KR><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -89,7 +89,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></ko-KR>
-  <ja-JP><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <ja-JP><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -100,7 +100,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></ja-JP>
-  <ru-RU><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <ru-RU><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -111,7 +111,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></ru-RU>
-  <pt-BR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <pt-BR><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -122,7 +122,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></pt-BR>
-  <cs-CZ><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <cs-CZ><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -133,7 +133,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></cs-CZ>
-  <nl-NL><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <nl-NL><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -144,7 +144,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></nl-NL>
-  <hu-HU><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <hu-HU><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -155,7 +155,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></hu-HU>
-  <no-NO><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <no-NO><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -166,7 +166,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></no-NO>
-  <pl-PL><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <pl-PL><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -177,7 +177,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></pl-PL>
-  <sv-SE><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <sv-SE><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
@@ -188,7 +188,7 @@
   jQuery('#ts-embed').load('/apps/tailscale/index.php');
 })();
 </script>]]></sv-SE>
-  <tr-TR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+  <tr-TR><![CDATA[<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
 <div id="ts-embed"></div>
 <script>
 /* The dashboard inserts this description with jQuery.html(), so scripts run.
