@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.3';
+$APP_VERSION = '1.0.4';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -31,20 +31,27 @@ function out($data, $code = 200) {
 }
 function fail($msg, $code = 400) { out(['ok' => false, 'error' => $msg], $code); }
 
-function ctl($args, $timeout = 120) {
+function ctl($args, $timeout = 120, $env = []) {
     global $CTL;
     $cmd = '/bin/sh ' . escapeshellarg($CTL);
     foreach ($args as $a) $cmd .= ' ' . escapeshellarg($a);
-    // The NAS has no 'timeout' binary; the ctl script bounds its own long calls.
-    set_time_limit((int)$timeout + 10);
-    exec($cmd . ' 2>&1', $lines, $rc);
-    return [$rc, implode("\n", $lines)];
-}
-function ctl_background($args) {
-    global $CTL;
-    $cmd = 'nohup /bin/sh ' . escapeshellarg($CTL);
-    foreach ($args as $a) $cmd .= ' ' . escapeshellarg($a);
-    exec($cmd . ' >/dev/null 2>&1 &');
+    $cmd .= ' 2>&1';
+    // The NAS has no 'timeout' binary, so run through proc_open and kill the
+    // child ourselves when it takes too long (set_time_limit does not cover exec).
+    $desc = [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w']];
+    $proc = proc_open($cmd, $desc, $pipes, null, array_merge($_ENV, $env));
+    if (!is_resource($proc)) return [127, 'could not start ctl script'];
+    stream_set_blocking($pipes[1], false);
+    $out = ''; $deadline = microtime(true) + $timeout;
+    while (true) {
+        $out .= (string)stream_get_contents($pipes[1]);
+        $st = proc_get_status($proc);
+        if (!$st['running']) { $out .= (string)stream_get_contents($pipes[1]); $rc = $st['exitcode']; break; }
+        if (microtime(true) > $deadline) { proc_terminate($proc, 9); $rc = 124; $out .= "\n(timed out after {$timeout}s)"; break; }
+        usleep(100000);
+    }
+    fclose($pipes[1]); proc_close($proc);
+    return [$rc, trim($out)];
 }
 
 function read_settings() {
@@ -71,6 +78,12 @@ $mutating = !in_array($action, ['status', 'settings', 'check_update', 'update_st
 if ($mutating) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
     if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') fail('missing X-Requested-With header', 403);
+    // Defence in depth next to the dashboard's own login gate: the request must
+    // originate from this NAS's dashboard (Origin or Referer host == Host).
+    $src = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '';
+    $srcHost = $src === '' ? '' : (string)parse_url($src, PHP_URL_HOST);
+    $host = (string)preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? '');
+    if ($srcHost === '' || strcasecmp($srcHost, $host) !== 0) fail('cross-origin request refused', 403);
 }
 
 switch ($action) {
@@ -84,12 +97,13 @@ switch ($action) {
 
     case 'start': case 'stop': case 'restart':
         [$rc, $o] = ctl([$action], 90);
-        out(['ok' => $rc === 0, 'output' => $o]);
+        out(['ok' => $rc === 0, 'output' => $o, 'downloading' => strpos($o, 'downloading') !== false]);
 
     case 'login':
         $key = trim($_POST['authkey'] ?? '');
         if (!preg_match('/^tskey-[A-Za-z0-9_-]{10,200}$/', $key)) fail('That does not look like a Tailscale auth key (tskey-…).');
-        [$rc, $o] = ctl(['login', $key], 150);
+        // Passed via the environment so the key never appears in the process list.
+        [$rc, $o] = ctl(['login'], 150, ['TS_AUTHKEY' => $key]);
         out(['ok' => $rc === 0, 'output' => $o]);
 
     case 'login_url':
@@ -100,7 +114,7 @@ switch ($action) {
     case 'login_url_poll':
         [$rc, $o] = ctl(['login-url-poll'], 10);
         $url = trim($o);
-        out(['ok' => true, 'url' => (strpos($url, 'https://') === 0 ? $url : ''), 'pending' => $url === 'pending']);
+        out(['ok' => true, 'url' => (strpos($url, 'https://') === 0 ? $url : ''), 'pending' => $url === 'pending', 'connected' => $url === 'connected']);
 
     case 'logout':
         [$rc, $o] = ctl(['logout'], 60);
@@ -128,8 +142,11 @@ switch ($action) {
                 case 'TS_NOTIFY':
                     if (!in_array($v, ['off', 'daily', 'weekly', 'monthly'], true)) $v = 'monthly'; break;
                 case 'TS_EXTRA_UP_ARGS': case 'TS_EXTRA_DAEMON_ARGS':
-                    // Flags only: no shell metacharacters.
-                    if ($v !== '' && !preg_match('/^(--?[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*\s*)+$/', $v)) fail("Extra flags may only contain --flag=value pairs, no shell characters.");
+                    // Flags only, space separated, no shell metacharacters or line breaks.
+                    $v = trim(preg_replace('/[ \t]+/', ' ', $v));
+                    if ($v !== '' && !preg_match('/^-{1,2}[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*( -{1,2}[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*)*$/', $v)) fail("Extra flags may only contain --flag=value pairs separated by spaces, no shell characters.");
+                    // Flags the app sets itself, or that would persist a key in plain text.
+                    if (preg_match('/(^| )--?(socket|state|statedir|tun|auth-?key|authkey|reset|timeout)(=|$| )/', $v)) fail("That flag is managed by the app and cannot be overridden here.");
                     break;
             }
             $cur[$k] = $v;
@@ -142,15 +159,15 @@ switch ($action) {
         [$rc, $o] = ctl(['check-update'], 60);
         $data = json_decode($o, true);
         if (!is_array($data)) fail('check failed: ' . $o, 500);
+        if (!empty($data['error'])) fail($data['error'], 502);
         $data['ok'] = true;
         out($data);
 
     case 'update':
         $ver = trim($_POST['version'] ?? '');
         if ($ver !== '' && !preg_match('/^\d+\.\d+\.\d+$/', $ver)) fail('Invalid version');
-        @file_put_contents($CONF_DIR . '/tmp/update.status', "running|Starting update…");
-        ctl_background($ver === '' ? ['update'] : ['update', $ver]);
-        out(['ok' => true]);
+        [$rc, $o] = ctl($ver === '' ? ['update-bg'] : ['update-bg', $ver], 20);
+        out(['ok' => $rc === 0, 'output' => $o]);
 
     case 'update_status':
         [$rc, $o] = ctl(['update-status'], 10);

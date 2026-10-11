@@ -2,8 +2,10 @@
 // Settings page for the Tailscale app. CenterType=1 apps are loaded as an HTML
 // fragment inside the My Cloud dashboard, so this file has no <html>/<head>.
 // Access is protected by the My Cloud login (Apache returns 403 otherwise).
+$v = '0';
+if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpath(__FILE__))) . '/apkg.rc'), $m)) $v = $m[1];
 ?>
-<link rel="stylesheet" href="/apps/tailscale/tailscale.css?v=1.0.3">
+<script>(function(){if(!document.getElementById('ts-css')){var l=document.createElement('link');l.id='ts-css';l.rel='stylesheet';l.href='/apps/tailscale/tailscale.css?v=<?php echo htmlspecialchars($v); ?>';document.head.appendChild(l);}})();</script>
 <div id="ts-app">
   <div class="ts-row">
     <div class="ts-card" id="ts-status-card">
@@ -47,9 +49,9 @@
       <form id="ts-settings-form" onsubmit="return false;">
         <label>Machine name <input type="text" name="TS_HOSTNAME" placeholder="(default: NAS hostname)"></label>
         <label><input type="checkbox" name="TS_ACCEPT_ROUTES"> Accept subnet routes from other nodes</label>
-        <label><input type="checkbox" name="TS_ACCEPT_DNS" checked> Use Tailscale DNS (MagicDNS)</label>
+        <label><input type="checkbox" name="TS_ACCEPT_DNS"> Use Tailscale DNS (MagicDNS) on the NAS itself <span class="ts-help">(rewrites the NAS's resolv.conf; off is safer for an appliance)</span></label>
         <label><input type="checkbox" name="TS_ADVERTISE_EXIT_NODE"> Advertise this NAS as exit node</label>
-        <label><input type="checkbox" name="TS_SSH"> Enable Tailscale SSH</label>
+        <label><input type="checkbox" name="TS_SSH"> Enable Tailscale SSH <span class="ts-help">(gives tailnet users allowed by your ACLs a root shell on this NAS)</span></label>
         <label>Advertise routes <input type="text" name="TS_ADVERTISE_ROUTES" placeholder="192.168.1.0/24,10.0.0.0/8"></label>
         <p class="ts-help" id="ts-nat-note" style="display:none">This NAS kernel has no iptables NAT table, so Tailscale runs with <code>--netfilter-mode=off</code>: exit node is not possible, and advertised subnet routes work only without SNAT (your router needs a static route for 100.64.0.0/10 to this NAS).</p>
         <details>
@@ -106,4 +108,4 @@
   <div id="ts-toast"></div>
   <p class="ts-footer">Tailscale app <span id="ts-app-version"></span> · <a href="https://github.com/la32094uf/mycloud-tailscale" target="_blank" rel="noopener">github.com/la32094uf/mycloud-tailscale</a></p>
 </div>
-<script src="/apps/tailscale/tailscale.js?v=1.0.3"></script>
+<script src="/apps/tailscale/tailscale.js?v=<?php echo htmlspecialchars($v); ?>"></script>

@@ -15,7 +15,8 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
     **browser login link**
   - see status: Tailscale IP, machine name, tailnet, health warnings
   - change **machine name**, **accept routes**, **MagicDNS**, **advertise
-    routes**, **exit node**, **Tailscale SSH**, plus free-form extra flags
+    routes**, **Tailscale SSH**, **exit node** (x86 models only, see
+    Limitations), plus free-form extra flags
   - **update the Tailscale binaries in place** when a new release is out, with
     checksum verification and one-click **roll back** to the previous version.
     You never need to reinstall the app for a Tailscale update.
@@ -34,12 +35,37 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
 1. Download the `.bin` for your model from the
    [latest release](https://github.com/la32094uf/mycloud-tailscale/releases).
 2. My Cloud dashboard → **Apps** → **Install an app manually** → pick the file.
-3. Open **Apps → Tailscale**, press **Start** if it is not running yet (first
-   start downloads ~30 MB), paste an auth key from
-   [Tailscale admin → Settings → Keys](https://login.tailscale.com/admin/settings/keys)
-   and press **Connect**.
+3. Open **Apps → Tailscale**. The first start downloads the Tailscale binaries
+   (~30 MB) in the background; the page shows the progress. Then paste an auth
+   key from [Tailscale admin → Settings → Keys](https://login.tailscale.com/admin/settings/keys)
+   and press **Connect**, or use the browser login link.
 
 Your NAS needs internet access for the download and for Tailscale itself.
+
+## Uninstall
+
+**Apps → Tailscale → Uninstall**. This logs the NAS out of your tailnet and
+deletes everything under `tailscale_conf` (binaries, node key, settings), as the
+dashboard's uninstall dialog promises. Remove the machine in the
+[Tailscale admin console](https://login.tailscale.com/admin/machines) if it is
+still listed there. Installing a newer app package over the existing one keeps
+`tailscale_conf`.
+
+## Things to know
+
+- Everyone with an admin login on the dashboard controls the daemon as root
+  through this page, like with any OS5 app.
+- **Tailscale SSH** gives tailnet users allowed by your ACLs a root shell on the
+  NAS. It is off by default.
+- **MagicDNS on the NAS itself** (accept DNS) makes tailscaled rewrite the
+  NAS's `/etc/resolv.conf`. Off by default: if the daemon is ever killed hard
+  the NAS could be left without DNS. You don't need it to reach the NAS by
+  name from other devices.
+- The dashboard's **Run App** switch stops and starts the daemon too. Note that
+  an app switched off there does not start at boot.
+- Update notifications use alert code 1501 ("App Update Available") of the
+  firmware. E-mails go to the addresses under Settings → Notifications; the
+  "Send test alert" button checks the whole chain.
 
 ## Limitations
 
@@ -49,8 +75,11 @@ Your NAS needs internet access for the download and for Tailscale itself.
   **exit node is not possible**, and advertised subnet routes work only without
   SNAT, so your router needs a static route for `100.64.0.0/10` pointing at the
   NAS. Plain device-to-device access to the NAS works fine.
-- Tested on a My Cloud EX2 Ultra (OS 5.33). The other models are built from the
-  same source but have not been tried; reports welcome.
+- Tested on a My Cloud EX2 Ultra with firmware 5.33.102. The other models are
+  built from the same source but have not been tried; reports welcome. The
+  inline settings page relies on the dashboard loading `desc.xml` as HTML,
+  which is how 5.x firmware behaves.
+- The single-bay My Cloud (Gen2) is not in the build list yet.
 
 ## Where things live on the NAS
 
@@ -64,20 +93,20 @@ Your NAS needs internet access for the download and for Tailscale itself.
   logs/                              tailscaled.log, tailscale-ctl.log
 ```
 
-`<volume>` is `/mnt/HD/HD_a2` on most models. Installing a newer app package
-over the existing one keeps `tailscale_conf`, so binaries, login and settings
-survive app upgrades. **Uninstalling** from the dashboard logs the node out of
-your tailnet and deletes `tailscale_conf`, as the uninstall dialog says.
+`<volume>` is `/mnt/HD/HD_a2` on most models; nothing in the app assumes that
+path, everything is derived from where the installer put it. Reinstalling on a
+different volume starts with a fresh `tailscale_conf` (new machine in the
+tailnet).
 
 Everything the settings page does goes through one shell script, which you can
 also use over SSH:
 
 ```
-sh /mnt/HD/HD_a2/Nas_Prog/tailscale/bin/tailscale-ctl.sh status|start|stop|login <key>|update|rollback|log
+sh <volume>/Nas_Prog/tailscale/bin/tailscale-ctl.sh status|start|stop|update|rollback|notify-check|log
+TS_AUTHKEY=tskey-auth-… sh <volume>/Nas_Prog/tailscale/bin/tailscale-ctl.sh login
 ```
 
-The `tailscale` CLI itself is at `<volume>/Nas_Prog/tailscale_conf/bin/tailscale`
-(use `--socket=/var/run/tailscale/tailscaled.sock`).
+The `tailscale` CLI itself is at `<volume>/Nas_Prog/tailscale_conf/bin/tailscale`.
 
 ## How an OS5 app is built
 
@@ -117,12 +146,19 @@ build.sh                 builds .bin files with mksapkg-OS5
 # Test the script directly on the NAS (after copying tailscale/ to Nas_Prog/tailscale)
 sh /mnt/HD/HD_a2/Nas_Prog/tailscale/bin/tailscale-ctl.sh status
 
-# Build locally (needs x86_64 Linux or Docker)
-curl -fsSLo mksapkg-OS5 https://raw.githubusercontent.com/WDCommunity/wdpksrc/master/mksapkg-OS5
+# Build locally (needs x86_64 Linux or Docker). On OpenSSL 3 the Blowfish
+# signing needs the legacy provider: see the shim in .github/workflows/build.yml.
+curl -fsSLo mksapkg-OS5 https://raw.githubusercontent.com/WDCommunity/wdpksrc/f72c74ad046ce44fe0a86452e14f5c0eff3226b8/mksapkg-OS5
 chmod +x mksapkg-OS5 && ./build.sh MyCloudEX2Ultra
+
+# Try changes without rebuilding: copy tailscale/ over the installed app
+scp -r tailscale/. root@nas:/mnt/HD/HD_a2/Nas_Prog/tailscale/
 ```
 
-Bump `Version:` in `tailscale/apkg.rc` for a new release, then tag `vX.Y.Z`.
+For a release: bump `Version:` in `tailscale/apkg.rc` (the page and API read it
+from there), commit, tag `vX.Y.Z` and push the tag. CI refuses a tag that does
+not match the version. Installing the new `.bin` over the old one is an upgrade
+and keeps your data.
 
 ## Credits
 
@@ -131,6 +167,7 @@ Bump `Version:` in `tailscale/apkg.rc` for a new release, then tag `vX.Y.Z`.
   out the OS5 package format and providing `mksapkg-OS5`, and for the `mycron`
   app that showed how embedded settings pages work.
 
+The app icon is a generic dot grid drawn for this project, not Tailscale's logo.
 Not affiliated with Western Digital or Tailscale Inc. Use at your own risk.
 
 ## License

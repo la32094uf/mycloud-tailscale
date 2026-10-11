@@ -7,6 +7,7 @@
 . "$(dirname "$(readlink -f "$0")")/common.sh"
 log "Script called: $0 $*"
 APP_DIR="$(app_dir "$1")"
+case "$APP_DIR" in */Nas_Prog/tailscale) ;; *) log "refusing to remove unexpected path $APP_DIR"; exit 1 ;; esac
 CONF_DIR="$(dirname "$APP_DIR")/tailscale_conf"
 if [ -f /tmp/tailscale_apkg_upgrade ]; then
     log "upgrade: keeping $CONF_DIR"

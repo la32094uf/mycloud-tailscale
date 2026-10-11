@@ -84,9 +84,11 @@
       var act = btn.dataset.act;
       if (act === 'status') { loadStatus(); return; }
       busy(true);
-      api(act, {}).then(function (r) { toast(r.output || (act + ' done'), !r.ok); })
-        .catch(function (e) { toast(e.message, true); })
-        .then(function () { busy(false); return loadStatus(); });
+      api(act, {}).then(function (r) {
+        toast(r.output || (act + ' done'), !r.ok);
+        if (r.downloading) { $('ts-upd-log').textContent = ''; watchUpdate(); return 'watching'; }
+      }).catch(function (e) { toast(e.message, true); })
+        .then(function (w) { if (w !== 'watching') { busy(false); return loadStatus(); } });
     });
   });
 
@@ -110,12 +112,14 @@
     busy(true); $('ts-loginurl').textContent = 'Requesting login link…';
     api('login_url', {}).then(function (r) {
       if (r.url) { showLoginUrl(r.url); return; }
+      if (/already connected/.test(r.output || '')) { $('ts-loginurl').textContent = 'Already connected. Log out first to switch tailnet.'; return; }
       var tries = 0;
       clearInterval(urlPoll);
       urlPoll = setInterval(function () {
         if (!alive()) { clearInterval(urlPoll); return; }
         api('login_url_poll').then(function (p) {
-          if (p.url) { clearInterval(urlPoll); showLoginUrl(p.url); }
+          if (p.connected) { clearInterval(urlPoll); $('ts-loginurl').textContent = 'Connected.'; loadStatus(); }
+          else if (p.url) { clearInterval(urlPoll); showLoginUrl(p.url); }
           else if (++tries > 30) { clearInterval(urlPoll); $('ts-loginurl').textContent = 'No link received. Check the log below.'; }
         });
       }, 2000);
@@ -173,13 +177,15 @@
   var updPoll;
   function watchUpdate() {
     clearInterval(updPoll);
-    var log = $('ts-upd-log'); var last = '';
+    var log = $('ts-upd-log'); var last = ''; var polls = 0;
+    busy(true);
     updPoll = setInterval(function () {
       if (!alive()) { clearInterval(updPoll); return; }
+      if (++polls > 900) { clearInterval(updPoll); busy(false); toast('Stopped waiting for the update; press Refresh.', true); return; }
       api('update_status').then(function (r) {
         var line = r.state + ': ' + r.message;
         if (line !== last) { log.textContent += line + '\n'; last = line; log.scrollTop = log.scrollHeight; }
-        if (r.state === 'done' || r.state === 'failed' || r.state === 'idle') {
+        if (r.state !== 'running') {
           clearInterval(updPoll); busy(false); lastUpdate = null; refreshUpdateButtons();
           toast(r.message, r.state === 'failed');
           loadStatus();
@@ -239,9 +245,9 @@
   $('ts-log-btn').addEventListener('click', loadLog);
 
   // ---- boot -------------------------------------------------------------
-  loadStatus().then(function () {
-    // If an update was in flight when the page opened, keep following it.
-    api('update_status').then(function (r) { if (r.state === 'running') { busy(true); $('ts-upd-log').textContent = ''; watchUpdate(); } });
+  loadStatus().then(function (s) {
+    // If an update/download was in flight when the page opened, keep following it.
+    if (s && s.updating) { $('ts-upd-log').textContent = ''; watchUpdate(); }
   });
   loadSettings();
   loadNotify();
