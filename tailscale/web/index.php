@@ -106,6 +106,6 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
   </div>
 
   <div id="ts-toast"></div>
-  <p class="ts-footer">Tailscale app <span id="ts-app-version"></span> · <a href="https://github.com/la32094uf/mycloud-tailscale" target="_blank" rel="noopener">github.com/la32094uf/mycloud-tailscale</a></p>
+  <p class="ts-footer">Tailscale app <span id="ts-app-version"></span> · <a href="https://github.com/la32094uf/mycloud-tailscale" target="_blank" rel="noopener">github.com/la32094uf/mycloud-tailscale</a> · <span id="ts-app-update">checking for a newer app version…</span></p>
 </div>
 <script src="/apps/tailscale/tailscale.js?v=<?php echo rawurlencode($v); ?>"></script>

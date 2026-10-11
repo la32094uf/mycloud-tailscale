@@ -28,6 +28,9 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
     weekly, monthly or off), and an immediate alert when Tailscale has
     published a new [security bulletin](https://tailscale.com/security-bulletins/)
     and an update is available
+  - the page also checks GitHub for a **newer version of this app** and the
+    same alert tells you when one is out; installing the new `.bin` over the
+    old one keeps your settings and login
   - view the daemon log
 - The Tailscale binaries are **downloaded on first start** from
   `pkgs.tailscale.com` for your CPU (arm, arm64, amd64), so the app package

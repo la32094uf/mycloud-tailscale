@@ -244,6 +244,18 @@
   }
   $('ts-log-btn').addEventListener('click', loadLog);
 
+  // ---- app (package) update -------------------------------------------
+  function checkAppUpdate() {
+    api('check_app_update').then(function (r) {
+      var el = $('ts-app-update');
+      if (r.update_available) {
+        el.innerHTML = '<strong class="ts-warn">App update available: ' + esc(r.latest) + '</strong> · <a href="' + esc(r.url) + '" target="_blank" rel="noopener">download</a> and install it via Apps → Install an app manually (settings and login are kept)';
+      } else {
+        el.textContent = 'app is up to date';
+      }
+    }).catch(function (e) { $('ts-app-update').textContent = 'app update check: ' + e.message; });
+  }
+
   // ---- boot -------------------------------------------------------------
   loadStatus().then(function (s) {
     // If an update/download was in flight when the page opened, keep following it.
@@ -252,4 +264,5 @@
   loadSettings();
   loadNotify();
   loadLog();
+  checkAppUpdate();
 })();

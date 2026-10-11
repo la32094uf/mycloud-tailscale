@@ -15,6 +15,7 @@
 #   tailscale-ctl.sh update-status          state|message of the last/current update
 #   tailscale-ctl.sh rollback               restore previous binaries
 #   tailscale-ctl.sh log [lines]
+#   tailscale-ctl.sh check-app-update       JSON: this app's version vs. the latest GitHub release
 #   tailscale-ctl.sh notify-check           alert via the My Cloud alert system when an update is due
 #   tailscale-ctl.sh notify-test            send a test alert (bell icon + e-mail if configured)
 #   tailscale-ctl.sh notify-status          JSON about the notification scheduler
@@ -50,6 +51,8 @@ TSD="$BIN_DIR/tailscaled"
 WEB_DIR="/var/www/apps/tailscale"
 PKG_BASE="https://pkgs.tailscale.com"
 BULLETIN_FEED="https://tailscale.com/security-bulletins/index.xml"
+APP_RELEASES_API="https://api.github.com/repos/la32094uf/mycloud-tailscale/releases/latest"
+APP_RELEASES_URL="https://github.com/la32094uf/mycloud-tailscale/releases"
 ALERT_CODE_APP_UPDATE=1501   # My Cloud alert "App Update Available", %1 = text
 MAX_LOG_BYTES=5000000
 
@@ -426,6 +429,31 @@ cmd_rollback() {
 }
 cmd_log() { n="${1:-80}"; tail -n "$n" "$DAEMON_LOG" 2>/dev/null; echo "--- tailscale-ctl ---"; tail -n 15 "$CTL_LOG" 2>/dev/null; }
 
+# --- app (package) updates ------------------------------------------------
+app_version() { sed -n 's/^Version:[[:space:]]*\([0-9.]*\).*/\1/p' "$APP_DIR/apkg.rc" | head -1; }
+latest_app_version() { # tag of the latest GitHub release, without the leading v; empty on failure
+    fetch "$APP_RELEASES_API" "$TMP_DIR/app_release.json" || return 1
+    v="$(sed -n 's/.*"tag_name":[[:space:]]*"v\{0,1\}\([0-9.]*\)".*/\1/p' "$TMP_DIR/app_release.json" | head -1)"
+    case "$v" in ''|*[!0-9.]*) return 1 ;; esac
+    echo "$v"
+}
+# "1.0.10" > "1.0.9": compare dot-separated numbers field by field
+version_gt() { # version_gt A B  -> true if A > B
+    a="$1."; b="$2."
+    while [ -n "$a" ] || [ -n "$b" ]; do
+        x="${a%%.*}"; y="${b%%.*}"; a="${a#*.}"; b="${b#*.}"
+        [ "$(num "$x")" -gt "$(num "$y")" ] && return 0
+        [ "$(num "$x")" -lt "$(num "$y")" ] && return 1
+    done
+    return 1
+}
+cmd_check_app_update() {
+    cur="$(app_version)"; lat="$(latest_app_version)"
+    err=""; [ -z "$lat" ] && err="could not reach GitHub"
+    avail=false; [ -n "$lat" ] && version_gt "$lat" "$cur" && avail=true
+    printf '{"installed":"%s","latest":"%s","update_available":%s,"url":"%s","error":"%s"}\n' "$cur" "$lat" "$avail" "$APP_RELEASES_URL" "$err"
+}
+
 # --- update notifications -------------------------------------------------
 # Uses the NAS's own alert system (fireAlert): the alert shows under the bell
 # icon in the dashboard and is e-mailed when alert e-mails are configured
@@ -489,8 +517,18 @@ cmd_notify_check() {
     # mentioned in an alert, so one seen while still up to date is not forgotten.
     [ -n "$bulletin" ] && [ -z "$last_bulletin" ] && { notify_state_set LAST_BULLETIN "$bulletin"; last_bulletin="$bulletin"; }
     new_bulletin=false; [ -n "$bulletin" ] && [ "$bulletin" != "$last_bulletin" ] && new_bulletin=true
-    if [ "$lat" = "$cur" ]; then echo "up to date ($cur)"; return 0; fi
     case "$TS_NOTIFY" in daily) interval=86400 ;; weekly) interval=604800 ;; *) interval=2592000 ;; esac
+    # This app itself: a newer package on GitHub gets its own reminder at the same cadence.
+    acur="$(app_version)"; alat="$(latest_app_version)"
+    if [ -n "$alat" ] && version_gt "$alat" "$acur"; then
+        alast="$(num "$(notify_state LAST_APP_NOTIFIED)")"
+        if [ $((now - alast)) -ge "$interval" ] || [ "$(notify_state LAST_APP_NOTIFIED_VERSION)" != "$alat" ]; then
+            if send_alert "Tailscale app $acur -> $alat is available. Download the .bin for your model from $APP_RELEASES_URL and install it with Apps > Install an app manually (your settings and login are kept)."; then
+                notify_state_set LAST_APP_NOTIFIED "$now"; notify_state_set LAST_APP_NOTIFIED_VERSION "$alat"; log "notified app update $acur -> $alat"
+            fi
+        fi
+    fi
+    if [ "$lat" = "$cur" ]; then echo "up to date ($cur)"; return 0; fi
     last_at="$(num "$(notify_state LAST_NOTIFIED)")"
     reason=""
     if $new_bulletin; then reason="Tailscale published security bulletin $bulletin"
@@ -527,6 +565,7 @@ case "${1:-}" in
     logout) cmd_logout ;;
     apply) cmd_apply ;;
     check-update) cmd_check_update ;;
+    check-app-update) cmd_check_app_update ;;
     update) cmd_update "${2:-}" ;;
     update-bg) cmd_update_bg "${2:-}" ;;
     update-status) cmd_update_status ;;
@@ -538,5 +577,5 @@ case "${1:-}" in
     notify-status) cmd_notify_status ;;
     weblinks) cmd_weblinks ;;
     paths) echo "APP_DIR=$APP_DIR"; echo "CONF_DIR=$CONF_DIR" ;;
-    *) echo "usage: $0 start|stop|restart|status|version|login|login-url|login-url-poll|logout|apply|check-update|update [ver]|update-bg [ver]|update-status|rollback|log [n]|notify-check|notify-test|notify-status|weblinks" >&2; exit 2 ;;
+    *) echo "usage: $0 start|stop|restart|status|version|login|login-url|login-url-poll|logout|apply|check-update|update [ver]|update-bg [ver]|update-status|rollback|log [n]|check-app-update|notify-check|notify-test|notify-status|weblinks" >&2; exit 2 ;;
 esac

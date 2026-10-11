@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.6';
+$APP_VERSION = '1.0.7';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -79,7 +79,7 @@ function write_settings($s) {
 }
 
 $action = $_GET['action'] ?? 'status';
-$mutating = !in_array($action, ['status', 'settings', 'check_update', 'update_status', 'login_url_poll', 'log', 'notify_status'], true);
+$mutating = !in_array($action, ['status', 'settings', 'check_update', 'check_app_update', 'update_status', 'login_url_poll', 'log', 'notify_status'], true);
 if ($mutating) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
     if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') fail('missing X-Requested-With header', 403);
@@ -169,6 +169,14 @@ switch ($action) {
 
     case 'check_update':
         [$rc, $o] = ctl(['check-update'], 60);
+        $data = json_decode($o, true);
+        if (!is_array($data)) fail('check failed: ' . $o, 500);
+        if (!empty($data['error'])) fail($data['error'], 502);
+        $data['ok'] = true;
+        out($data);
+
+    case 'check_app_update':
+        [$rc, $o] = ctl(['check-app-update'], 60);
         $data = json_decode($o, true);
         if (!is_array($data)) fail('check failed: ' . $o, 500);
         if (!empty($data['error'])) fail($data['error'], 502);
