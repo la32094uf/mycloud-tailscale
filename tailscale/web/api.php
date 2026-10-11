@@ -1,0 +1,169 @@
+<?php
+/**
+ * api.php: JSON backend for the Tailscale settings page.
+ *
+ * Runs under the My Cloud web server (Apache + php-fpm, as root). Apache only
+ * serves /apps/* to a browser that is logged in to the My Cloud dashboard, so
+ * this script relies on that gate. On top of that: mutating actions must be
+ * POST requests carrying the X-Requested-With header (blocks cross-site forms),
+ * and every value handed to the shell is validated and escaped.
+ */
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+$APP_DIR  = dirname(dirname(realpath(__FILE__)));
+$CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
+$CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
+$SETTINGS = $CONF_DIR . '/settings.conf';
+$APP_VERSION = '1.0.0';
+if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
+
+$SETTING_KEYS = [
+    'TS_HOSTNAME', 'TS_ACCEPT_ROUTES', 'TS_ADVERTISE_ROUTES', 'TS_ADVERTISE_EXIT_NODE',
+    'TS_ACCEPT_DNS', 'TS_SSH', 'TS_EXTRA_UP_ARGS', 'TS_EXTRA_DAEMON_ARGS', 'TS_CHANNEL',
+];
+
+function out($data, $code = 200) {
+    http_response_code($code);
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+function fail($msg, $code = 400) { out(['ok' => false, 'error' => $msg], $code); }
+
+function ctl($args, $timeout = 120) {
+    global $CTL;
+    $cmd = '/bin/sh ' . escapeshellarg($CTL);
+    foreach ($args as $a) $cmd .= ' ' . escapeshellarg($a);
+    // The NAS has no 'timeout' binary; the ctl script bounds its own long calls.
+    set_time_limit((int)$timeout + 10);
+    exec($cmd . ' 2>&1', $lines, $rc);
+    return [$rc, implode("\n", $lines)];
+}
+function ctl_background($args) {
+    global $CTL;
+    $cmd = 'nohup /bin/sh ' . escapeshellarg($CTL);
+    foreach ($args as $a) $cmd .= ' ' . escapeshellarg($a);
+    exec($cmd . ' >/dev/null 2>&1 &');
+}
+
+function read_settings() {
+    global $SETTINGS, $SETTING_KEYS, $APP_DIR;
+    $file = file_exists($SETTINGS) ? $SETTINGS : $APP_DIR . '/settings.conf.default';
+    $s = array_fill_keys($SETTING_KEYS, '');
+    foreach (@file($file, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+        if ($line === '' || $line[0] === '#' || strpos($line, '=') === false) continue;
+        [$k, $v] = explode('=', $line, 2);
+        if (in_array($k, $SETTING_KEYS, true)) $s[$k] = $v;
+    }
+    return $s;
+}
+function write_settings($s) {
+    global $SETTINGS, $CONF_DIR;
+    if (!is_dir($CONF_DIR)) mkdir($CONF_DIR, 0755, true);
+    $txt = "# Tailscale app settings. Edit via the settings page; KEY=VALUE, no quotes.\n";
+    foreach ($s as $k => $v) $txt .= "$k=$v\n";
+    return file_put_contents($SETTINGS, $txt) !== false;
+}
+
+$action = $_REQUEST['action'] ?? 'status';
+$mutating = !in_array($action, ['status', 'settings', 'check_update', 'update_status', 'login_url_poll', 'log'], true);
+if ($mutating) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+    if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') fail('missing X-Requested-With header', 403);
+}
+
+switch ($action) {
+    case 'status':
+        [$rc, $o] = ctl(['status'], 30);
+        $data = json_decode($o, true);
+        if (!is_array($data)) fail('status failed: ' . $o, 500);
+        $data['ok'] = true;
+        $data['app_version'] = $APP_VERSION;
+        out($data);
+
+    case 'start': case 'stop': case 'restart':
+        [$rc, $o] = ctl([$action], 90);
+        out(['ok' => $rc === 0, 'output' => $o]);
+
+    case 'login':
+        $key = trim($_POST['authkey'] ?? '');
+        if (!preg_match('/^tskey-[A-Za-z0-9_-]{10,200}$/', $key)) fail('That does not look like a Tailscale auth key (tskey-…).');
+        [$rc, $o] = ctl(['login', $key], 150);
+        out(['ok' => $rc === 0, 'output' => $o]);
+
+    case 'login_url':
+        [$rc, $o] = ctl(['login-url'], 60);
+        $url = trim($o);
+        out(['ok' => $rc === 0, 'url' => (strpos($url, 'https://') === 0 ? $url : ''), 'pending' => $url === 'pending', 'output' => $o]);
+
+    case 'login_url_poll':
+        [$rc, $o] = ctl(['login-url-poll'], 10);
+        $url = trim($o);
+        out(['ok' => true, 'url' => (strpos($url, 'https://') === 0 ? $url : ''), 'pending' => $url === 'pending']);
+
+    case 'logout':
+        [$rc, $o] = ctl(['logout'], 60);
+        out(['ok' => $rc === 0, 'output' => $o]);
+
+    case 'settings':
+        out(['ok' => true, 'settings' => read_settings()]);
+
+    case 'save_settings':
+        $cur = read_settings();
+        foreach ($SETTING_KEYS as $k) {
+            if (!array_key_exists($k, $_POST)) continue;
+            $v = trim((string)$_POST[$k]);
+            switch ($k) {
+                case 'TS_ACCEPT_ROUTES': case 'TS_ADVERTISE_EXIT_NODE': case 'TS_ACCEPT_DNS': case 'TS_SSH':
+                    $v = in_array(strtolower($v), ['1', 'true', 'on', 'yes'], true) ? '1' : '0'; break;
+                case 'TS_HOSTNAME':
+                    if ($v !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/', $v)) fail('Machine name may only contain letters, digits and dashes.'); break;
+                case 'TS_ADVERTISE_ROUTES':
+                    $v = preg_replace('/\s+/', '', $v);
+                    if ($v !== '' && !preg_match('#^([0-9a-fA-F:.]+/\d{1,3})(,[0-9a-fA-F:.]+/\d{1,3})*$#', $v)) fail('Advertise routes must be CIDRs separated by commas, e.g. 192.168.1.0/24');
+                    break;
+                case 'TS_CHANNEL':
+                    if (!in_array($v, ['stable', 'unstable'], true)) $v = 'stable'; break;
+                case 'TS_EXTRA_UP_ARGS': case 'TS_EXTRA_DAEMON_ARGS':
+                    // Flags only: no shell metacharacters.
+                    if ($v !== '' && !preg_match('/^(--?[A-Za-z0-9][A-Za-z0-9=.,:\/_@+-]*\s*)+$/', $v)) fail("Extra flags may only contain --flag=value pairs, no shell characters.");
+                    break;
+            }
+            $cur[$k] = $v;
+        }
+        if (!write_settings($cur)) fail('Could not write settings file', 500);
+        [$rc, $o] = ctl(['apply'], 60);
+        out(['ok' => true, 'applied' => $rc === 0, 'output' => $o, 'settings' => $cur]);
+
+    case 'check_update':
+        [$rc, $o] = ctl(['check-update'], 60);
+        $data = json_decode($o, true);
+        if (!is_array($data)) fail('check failed: ' . $o, 500);
+        $data['ok'] = true;
+        out($data);
+
+    case 'update':
+        $ver = trim($_POST['version'] ?? '');
+        if ($ver !== '' && !preg_match('/^\d+\.\d+\.\d+$/', $ver)) fail('Invalid version');
+        @file_put_contents($CONF_DIR . '/tmp/update.status', "running|Starting update…");
+        ctl_background($ver === '' ? ['update'] : ['update', $ver]);
+        out(['ok' => true]);
+
+    case 'update_status':
+        [$rc, $o] = ctl(['update-status'], 10);
+        [$state, $msg] = array_pad(explode('|', trim($o), 2), 2, '');
+        out(['ok' => true, 'state' => $state, 'message' => $msg]);
+
+    case 'rollback':
+        [$rc, $o] = ctl(['rollback'], 90);
+        out(['ok' => $rc === 0, 'output' => $o]);
+
+    case 'log':
+        $n = max(10, min(500, (int)($_GET['lines'] ?? 80)));
+        [$rc, $o] = ctl(['log', (string)$n], 20);
+        out(['ok' => true, 'log' => $o]);
+
+    default:
+        fail('unknown action', 404);
+}

@@ -1,0 +1,19 @@
+Package:            tailscale
+Version:            1.0.0
+Packager:           la32094uf
+Email:              
+Homepage:           https://github.com/la32094uf/mycloud-tailscale
+Description:        Tailscale VPN for My Cloud OS5. Log in with an auth key, change settings and update the Tailscale binaries in place, all from this settings page.
+AddonShowName:      Tailscale
+Icon:               tailscale.png
+AddonIndexPage:     index.php
+AddonUsedPort:
+InstDepend:
+InstConflict:
+StartDepend:
+StartConflict:
+CenterType:         1
+UserControl:        0
+MinFWVer:
+MaxFWVer:
+IndividualFlag:     0

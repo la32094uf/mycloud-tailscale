@@ -1,0 +1,14 @@
+# Tailscale app settings (KEY=VALUE, no spaces around '=')
+# Applied with 'tailscale set' when you save, and with 'tailscale up' when you log in.
+TS_HOSTNAME=
+TS_ACCEPT_ROUTES=0
+TS_ADVERTISE_ROUTES=
+TS_ADVERTISE_EXIT_NODE=0
+TS_ACCEPT_DNS=1
+TS_SSH=0
+# Extra flags passed verbatim to 'tailscale up' at login (advanced)
+TS_EXTRA_UP_ARGS=
+# Extra flags passed verbatim to 'tailscaled' (advanced), e.g. --port=41641
+TS_EXTRA_DAEMON_ARGS=
+# Update channel: stable or unstable
+TS_CHANNEL=stable

@@ -1,0 +1,7 @@
+packages/
+mksapkg-OS5
+apkg_tar_tmp.tgz
+*.bin
+.DS_Store
+tailscale/apkg.sign
+tailscale/apkg.xml
