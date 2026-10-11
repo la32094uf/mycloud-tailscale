@@ -3,7 +3,7 @@
 // fragment inside the My Cloud dashboard, so this file has no <html>/<head>.
 // Access is protected by the My Cloud login (Apache returns 403 otherwise).
 ?>
-<link rel="stylesheet" href="/apps/tailscale/tailscale.css?v=1.0.0">
+<link rel="stylesheet" href="/apps/tailscale/tailscale.css?v=1.0.1">
 <div id="ts-app">
   <div class="ts-row">
     <div class="ts-card" id="ts-status-card">
@@ -89,4 +89,4 @@
   <div id="ts-toast"></div>
   <p class="ts-footer">Tailscale app <span id="ts-app-version"></span> · <a href="https://github.com/la32094uf/mycloud-tailscale" target="_blank" rel="noopener">github.com/la32094uf/mycloud-tailscale</a></p>
 </div>
-<script src="/apps/tailscale/tailscale.js?v=1.0.0"></script>
+<script src="/apps/tailscale/tailscale.js?v=1.0.1"></script>

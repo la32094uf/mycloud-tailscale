@@ -18,6 +18,8 @@
     toastTimer = setTimeout(function () { t.className = ''; }, isError ? 8000 : 3500);
   }
 
+  function alive() { return document.body.contains(root); }
+
   function api(action, data, method) {
     var opts = { method: method || (data ? 'POST' : 'GET'), headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' };
     var url = API + '?action=' + encodeURIComponent(action);
@@ -106,6 +108,7 @@
       var tries = 0;
       clearInterval(urlPoll);
       urlPoll = setInterval(function () {
+        if (!alive()) { clearInterval(urlPoll); return; }
         api('login_url_poll').then(function (p) {
           if (p.url) { clearInterval(urlPoll); showLoginUrl(p.url); }
           else if (++tries > 30) { clearInterval(urlPoll); $('ts-loginurl').textContent = 'No link received. Check the log below.'; }
@@ -166,6 +169,7 @@
     clearInterval(updPoll);
     var log = $('ts-upd-log'); var last = '';
     updPoll = setInterval(function () {
+      if (!alive()) { clearInterval(updPoll); return; }
       api('update_status').then(function (r) {
         var line = r.state + ': ' + r.message;
         if (line !== last) { log.textContent += line + '\n'; last = line; log.scrollTop = log.scrollHeight; }

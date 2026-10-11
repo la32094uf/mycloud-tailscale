@@ -10,7 +10,7 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
 - **Runs `tailscaled` as a proper OS5 app**: starts at boot, stops cleanly, and
   shows up under *Apps* like any other app. No more hooking into Plex's start
   script or editing files over SSH.
-- **Settings page** (Apps → Tailscale → Configure):
+- **Settings page** right on the app's page (Apps → Tailscale), no extra click:
   - connect with an **auth key** (used once, never stored) or with a
     **browser login link**
   - see status: Tailscale IP, machine name, tailnet, health warnings
@@ -76,7 +76,10 @@ artifacts; a `v*` tag publishes them as a release.
 
 Apps with `CenterType: 1` are embedded in the dashboard: `web/index.php` is
 loaded as an HTML fragment at `/apps/tailscale/index.php`, and Apache only serves
-that path to a browser that is logged in to the dashboard. `web/api.php` is the
+that path to a browser that is logged in to the dashboard. The dashboard also
+fetches `web/desc.xml` and inserts the text for the current language as HTML on
+the app's own page; this app uses that to load the settings page inline there,
+so no "Configure" click is needed. `web/api.php` is the
 JSON backend; it runs as root (like every OS5 web page) and shells out to
 `bin/tailscale-ctl.sh` with validated, escaped arguments only.
 

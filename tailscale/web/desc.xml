@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Shown on the app page inside the My Cloud dashboard (app_menu.js get_app_desc). -->
+<desc>
+  <en-US><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></en-US>
+  <fr-FR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></fr-FR>
+  <it-IT><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></it-IT>
+  <de-DE><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></de-DE>
+  <es-ES><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></es-ES>
+  <zh-CN><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></zh-CN>
+  <zh-TW><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></zh-TW>
+  <ko-KR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></ko-KR>
+  <ja-JP><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></ja-JP>
+  <ru-RU><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></ru-RU>
+  <pt-BR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></pt-BR>
+  <cs-CZ><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></cs-CZ>
+  <nl-NL><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></nl-NL>
+  <hu-HU><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></hu-HU>
+  <no-NO><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></no-NO>
+  <pl-PL><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></pl-PL>
+  <sv-SE><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></sv-SE>
+  <tr-TR><![CDATA[<p>Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Load the settings page inline and hide the redundant "Configuration URL" row. */
+(function () {
+  if (!window.jQuery || !document.getElementById('ts-embed')) return;
+  setTimeout(function () { jQuery('#apps_config_button').closest('tr').hide(); }, 0);
+  jQuery('#ts-embed').load('/apps/tailscale/index.php');
+})();
+</script>]]></tr-TR>
+</desc>
