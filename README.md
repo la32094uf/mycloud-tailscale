@@ -15,16 +15,17 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
     **browser login link**
   - see status: Tailscale IP, machine name, tailnet, health warnings
   - change **machine name**, **accept routes**, **MagicDNS**, **advertise
-    routes**, **Tailscale SSH**, **exit node** (x86 models only, see
-    Limitations), plus free-form extra flags
+    routes**, **Tailscale SSH**, **exit node** (only on models whose kernel
+    has a NAT table; the page tells you), plus free-form extra flags
   - **update the Tailscale binaries in place** when a new release is out, with
     checksum verification and one-click **roll back** to the previous version.
     You never need to reinstall the app for a Tailscale update.
   - **update notifications** through the My Cloud alert system (bell icon, and
     e-mail if alert e-mails are configured under Settings → Notifications):
-    a reminder while an update is available (daily, weekly, monthly or off),
-    and an immediate alert when Tailscale publishes a new
-    [security bulletin](https://tailscale.com/security-bulletins/)
+    a reminder at the chosen interval while an update is available (daily,
+    weekly, monthly or off), and an immediate alert when Tailscale has
+    published a new [security bulletin](https://tailscale.com/security-bulletins/)
+    and an update is available
   - view the daemon log
 - The Tailscale binaries are **downloaded on first start** from
   `pkgs.tailscale.com` for your CPU (arm, arm64, amd64), so the app package
@@ -154,6 +155,10 @@ chmod +x mksapkg-OS5 && ./build.sh MyCloudEX2Ultra
 # Try changes without rebuilding: copy tailscale/ over the installed app
 scp -r tailscale/. root@nas:/mnt/HD/HD_a2/Nas_Prog/tailscale/
 ```
+
+The text on the app page comes from `tailscale/web/desc.template.html`; after
+editing it run `python3 tools/gen-desc.py` to regenerate `desc.xml` for all
+dashboard languages (CI checks that they match).
 
 For a release: bump `Version:` in `tailscale/apkg.rc` (the page and API read it
 from there), commit, tag `vX.Y.Z` and push the tag. CI refuses a tag that does

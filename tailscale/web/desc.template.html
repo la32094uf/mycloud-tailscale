@@ -1,0 +1,17 @@
+<p style="max-width:820px">Tailscale VPN for My Cloud OS5: log in with an auth key, change settings and update the Tailscale binaries in place, right here.</p>
+<div id="ts-embed"></div>
+<script>
+/* The dashboard inserts this description with jQuery.html(), so scripts run.
+   Only on the app detail panel: load the settings page inline and hide the
+   redundant "Configuration URL" row while this app is shown. */
+(function () {
+  var embed = document.getElementById('ts-embed');
+  if (!window.jQuery || !embed || !document.getElementById('apps_config_button')) return;
+  var row = jQuery('#apps_config_button').closest('tr');
+  setTimeout(function () { row.hide(); }, 0);
+  jQuery(embed).load('/apps/tailscale/index.php');
+  var t = setInterval(function () {
+    if (!document.body.contains(embed)) { clearInterval(t); row.show(); }
+  }, 1000);
+})();
+</script>

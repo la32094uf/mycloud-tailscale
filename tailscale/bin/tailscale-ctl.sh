@@ -4,7 +4,7 @@
 # page (web/api.php). POSIX sh only: the NAS runs busybox ash.
 #
 #   tailscale-ctl.sh start|stop|restart|status|version
-#   tailscale-ctl.sh login                  connect with the auth key in $TS_AUTHKEY (env, not argv)
+#   tailscale-ctl.sh login                  connect with the auth key in $TS_AUTHKEY (handed to tailscale via a 0600 file, never argv)
 #   tailscale-ctl.sh login-url              start browser login, prints URL when ready
 #   tailscale-ctl.sh login-url-poll         print URL if available
 #   tailscale-ctl.sh logout
@@ -22,7 +22,8 @@
 #   tailscale-ctl.sh weblinks               (re)create the dashboard symlinks in /var/www/apps
 
 set -u
-set -f                       # no globbing of settings values
+set -f                       # no globbing of settings values (use 'set +f' locally where a glob is wanted)
+umask 077
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 SELF="$(readlink -f "$0")"
@@ -136,16 +137,15 @@ daemon_pid() {
     pgrep -f "$TSD" 2>/dev/null | head -1
 }
 is_running() { [ -n "$(daemon_pid)" ]; }
-wait_for_socket() { # up to ~20 s for tailscaled to answer on its socket
+backend_state() { "$TS" --socket="$SOCK" status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([A-Za-z]*\)".*/\1/p' | head -1; }
+wait_for_socket() { # up to 20 s for tailscaled to answer on its socket ('status --json' works in every state)
     i=0
-    while [ $i -lt 40 ]; do
-        [ -S "$SOCK" ] && "$TS" --socket="$SOCK" status >/dev/null 2>&1 && return 0
-        "$TS" --socket="$SOCK" status 2>&1 | grep -q "NeedsLogin\|Logged out\|Stopped" && return 0
-        sleep 0.5; i=$((i+1))
+    while [ $i -lt 20 ]; do
+        [ -S "$SOCK" ] && [ -n "$(backend_state)" ] && return 0
+        sleep 1; i=$((i+1))
     done
     return 1
 }
-backend_state() { "$TS" --socket="$SOCK" status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([A-Za-z]*\)".*/\1/p' | head -1; }
 
 installed_version() { [ -x "$TS" ] && "$TS" version 2>/dev/null | head -1; }
 prev_version() { [ -x "$PREV_DIR/tailscale" ] && "$PREV_DIR/tailscale" version 2>/dev/null | head -1; }
@@ -165,10 +165,12 @@ cmd_weblinks() { # CenterType=1 apps are served from /var/www/apps/<name>; /var/
 cmd_start() {
     load_settings
     cmd_weblinks
+    # Never start a daemon while another process is swapping bin/ (the updater itself may call us).
+    if lock_held && [ "$(cat "$UPDATE_LOCK/pid" 2>/dev/null)" != "$$" ]; then echo "update in progress"; return 0; fi
     if ! [ -x "$TSD" ]; then
-        if lock_held; then echo "update in progress"; return 0; fi
         log "No tailscale binaries yet, downloading latest ($TS_CHANNEL) in the background"
         cmd_update_bg ""
+        notify_loop_start       # the loop keeps retrying the download if the network is slow to come up
         echo "downloading Tailscale, see update status"
         return 0
     fi
@@ -220,9 +222,13 @@ cmd_login() {
     # An auth key is ignored by 'tailscale up' while already logged in; say so instead of pretending.
     [ "$(backend_state)" = Running ] && die "already connected to a tailnet; press 'Log out of Tailscale' first to switch"
     rm -f "$LOGIN_OUT"
+    # The CLI reads the key from a file (--auth-key=file:...), so it never appears in ps/argv.
+    keyfile="$STATE_DIR/authkey.$$"
+    printf '%s' "$key" > "$keyfile" && chmod 600 "$keyfile" || die "could not write key file"
     # shellcheck disable=SC2046,SC2086
-    out="$(TS_AUTHKEY="$key" "$TS" --socket="$SOCK" up --reset --timeout=90s --auth-key="$key" $(pref_flags) $TS_EXTRA_UP_ARGS 2>&1)"
+    out="$("$TS" --socket="$SOCK" up --reset --timeout=90s --auth-key="file:$keyfile" $(pref_flags) $TS_EXTRA_UP_ARGS 2>&1)"
     rc=$?
+    rm -f "$keyfile"
     log "login rc=$rc: $(echo "$out" | tail -3 | tr '\n' ' ')"
     echo "$out"
     return $rc
@@ -248,7 +254,13 @@ cmd_login_url_poll() {
     url="$(grep -o 'https://login.tailscale.com/[A-Za-z0-9/_-]*' "$LOGIN_OUT" 2>/dev/null | head -1)"
     [ -n "$url" ] && echo "$url" || echo "pending"
 }
-cmd_logout() { rm -f "$LOGIN_OUT"; [ -x "$TS" ] || { echo "not installed"; return 0; }; "$TS" --socket="$SOCK" logout 2>&1; }
+cmd_logout() {
+    rm -f "$LOGIN_OUT"
+    [ -x "$TS" ] || { echo "not installed"; return 0; }
+    is_running || die "daemon not running (start it first to log out)"
+    wait_for_socket || die "tailscaled did not answer"
+    "$TS" --socket="$SOCK" logout 2>&1
+}
 cmd_apply() {
     load_settings
     is_running || die "daemon not running"
@@ -260,18 +272,28 @@ cmd_apply() {
 # One updater at a time: mkdir is atomic. The lock holds the pid of the updater.
 lock_held() {
     [ -d "$UPDATE_LOCK" ] || return 1
+    if [ ! -f "$UPDATE_LOCK/pid" ]; then
+        # Being taken right now (mkdir done, pid not written yet) unless it is old.
+        [ -n "$(find "$UPDATE_LOCK" -maxdepth 0 -mmin +2 2>/dev/null)" ] || return 0
+        rm -rf "$UPDATE_LOCK"; return 1
+    fi
     p="$(cat "$UPDATE_LOCK/pid" 2>/dev/null)"
-    if [ -n "$p" ] && [ -d "/proc/$p" ]; then return 0; fi
-    rm -rf "$UPDATE_LOCK"; return 1       # stale lock from a killed updater
+    if [ -n "$p" ] && [ -d "/proc/$p" ] && grep -q "tailscale-ctl" "/proc/$p/cmdline" 2>/dev/null; then return 0; fi
+    rm -rf "$UPDATE_LOCK"; return 1       # stale lock from a killed updater (or a reused pid)
 }
 lock_take() { lock_held && return 1; mkdir "$UPDATE_LOCK" 2>/dev/null || return 1; echo $$ > "$UPDATE_LOCK/pid"; }
 lock_release() { rm -rf "$UPDATE_LOCK"; }
+# On INT/TERM release the lock and stop; on normal exit just release it.
+lock_traps() { trap 'lock_release; trap - EXIT; exit 143' INT TERM; trap lock_release EXIT; }
+lock_untrap() { trap - EXIT INT TERM; }
 ustat() { echo "$1|$2|$$|$(date +%s)" > "$UPDATE_STATUS"; log "update: $1 $2"; }
 
 latest_version() { # prints version for the configured channel, empty on failure
     load_settings
     fetch "$PKG_BASE/$TS_CHANNEL/?mode=json" "$TMP_DIR/latest.json" || return 1
-    sed -n 's/.*"TarballsVersion":[[:space:]]*"\([^"]*\)".*/\1/p' "$TMP_DIR/latest.json" | head -1
+    v="$(sed -n 's/.*"TarballsVersion":[[:space:]]*"\([^"]*\)".*/\1/p' "$TMP_DIR/latest.json" | head -1)"
+    case "$v" in ''|*[!0-9.]*) return 1 ;; esac   # only digits and dots reach alerts, filenames, mails
+    echo "$v"
 }
 cmd_check_update() {
     load_settings
@@ -285,7 +307,7 @@ cmd_update() {
     load_settings
     want="${1:-}"
     lock_take || { echo "another update is already running"; return 1; }
-    trap 'lock_release' EXIT INT TERM
+    lock_traps
     arch="$(ts_arch)"; [ "$arch" = unknown ] && { ustat failed "unsupported CPU: $(uname -m)"; return 1; }
     ustat running "Looking up latest version…"
     if [ -z "$want" ]; then
@@ -322,15 +344,16 @@ cmd_update() {
     ustat running "Stopping daemon…"
     cmd_stop >/dev/null
     ustat running "Installing $want…"
-    if [ -x "$TSD" ]; then mv "$BIN_DIR" "$old"; fi
+    # bin/ may exist but be empty on a first install: always move it aside, or mv would nest bin.new inside it.
+    if [ -d "$BIN_DIR" ]; then mv "$BIN_DIR" "$old" || { ustat failed "could not move old binaries aside"; return 1; }; fi
     if ! mv "$new" "$BIN_DIR"; then
         [ -d "$old" ] && mv "$old" "$BIN_DIR"
-        ustat failed "could not install new binaries"; cmd_start >/dev/null; return 1
+        ustat failed "could not install new binaries"; [ -x "$TSD" ] && cmd_start >/dev/null; return 1
     fi
-    if [ -d "$old" ]; then rm -rf "${PREV_DIR:?}"; mv "$old" "$PREV_DIR"; fi
+    if [ -x "$old/tailscaled" ]; then rm -rf "${PREV_DIR:?}"; mv "$old" "$PREV_DIR"; else rm -rf "$old"; fi
     ustat running "Starting daemon…"
-    lock_release; trap - EXIT INT TERM
-    cmd_start >/dev/null
+    lock_release; lock_untrap
+    [ -x "$TSD" ] && cmd_start >/dev/null
     ustat done "Updated ${cur:-nothing} → $(installed_version)"
 }
 cmd_update_bg() {
@@ -354,11 +377,15 @@ cmd_update_status() {
 cmd_rollback() {
     [ -x "$PREV_DIR/tailscaled" ] || die "no previous version to roll back to"
     lock_take || die "an update is running"
-    trap 'lock_release' EXIT INT TERM
+    lock_traps
     cmd_stop >/dev/null
     swap="${TMP_DIR:?}/bin.swap"
-    rm -rf "$swap"; mv "$BIN_DIR" "$swap"; mv "$PREV_DIR" "$BIN_DIR"; mv "$swap" "$PREV_DIR"
-    lock_release; trap - EXIT INT TERM
+    rm -rf "$swap"
+    if ! { mv "$BIN_DIR" "$swap" && mv "$PREV_DIR" "$BIN_DIR" && mv "$swap" "$PREV_DIR"; }; then
+        [ -d "$BIN_DIR" ] || mv "$swap" "$BIN_DIR" 2>/dev/null
+        lock_release; lock_untrap; cmd_start >/dev/null; die "rollback failed, kept $(installed_version)"
+    fi
+    lock_release; lock_untrap
     cmd_start >/dev/null
     ustat done "Rolled back to $(installed_version)"
     echo "rolled back to $(installed_version)"
@@ -388,11 +415,16 @@ notify_loop_stop() {
 cmd_notify_loop() {
     sleep 180          # let the network come up after boot
     while :; do
+        if ! [ -x "$TSD" ]; then
+            # First download failed (no network at boot?): keep trying every 10 minutes.
+            lock_held || cmd_update_bg "" >/dev/null 2>&1
+            sleep 600; continue
+        fi
         cmd_notify_check >/dev/null 2>&1
         sleep 21600    # 6 hours
     done
 }
-send_alert() { # send_alert "text"
+send_alert() { # send_alert "text"  (leading space: the firmware pastes %1 right after a full stop)
     if command -v fireAlert >/dev/null 2>&1; then
         fireAlert -a "$ALERT_CODE_APP_UPDATE" -p " $1" -f
     elif command -v sendAlert.sh >/dev/null 2>&1; then
@@ -403,12 +435,13 @@ send_alert() { # send_alert "text"
 }
 notify_state() { [ -f "$NOTIFY_STATE" ] && sed -n "s/^$1=//p" "$NOTIFY_STATE" | head -1; }
 notify_state_set() {
-    { [ -f "$NOTIFY_STATE" ] && grep -v "^$1=" "$NOTIFY_STATE"; echo "$1=$2"; } > "$NOTIFY_STATE.tmp" 2>/dev/null
-    mv -f "$NOTIFY_STATE.tmp" "$NOTIFY_STATE"
+    { [ -f "$NOTIFY_STATE" ] && grep -v "^$1=" "$NOTIFY_STATE"; echo "$1=$2"; } > "$NOTIFY_STATE.tmp.$$" 2>/dev/null
+    mv -f "$NOTIFY_STATE.tmp.$$" "$NOTIFY_STATE"
 }
-latest_bulletin() { # newest security bulletin id from Tailscale's RSS feed, e.g. TS-2026-011
+num() { case "$1" in ''|*[!0-9]*) echo 0 ;; *) echo "$1" ;; esac; }
+latest_bulletin() { # id of the first <item> (newest) in Tailscale's security bulletin feed, e.g. TS-2026-011
     fetch "$BULLETIN_FEED" "$TMP_DIR/bulletins.xml" || return 1
-    sed -n 's/.*<title>\(TS-[0-9][0-9-]*\)<\/title>.*/\1/p' "$TMP_DIR/bulletins.xml" | head -1
+    sed -n '/<item>/,/<\/item>/p' "$TMP_DIR/bulletins.xml" | sed -n 's/.*<title>[^<]*\(TS-[0-9][0-9]*-[0-9][0-9]*\)<\/title>.*/\1/p' | head -1
 }
 cmd_notify_check() {
     load_settings
@@ -418,25 +451,22 @@ cmd_notify_check() {
     cur="$(installed_version)"; lat="$(latest_version)"
     [ -z "$lat" ] && { echo "could not fetch latest version"; return 1; }
     bulletin="$(latest_bulletin)"; last_bulletin="$(notify_state LAST_BULLETIN)"
-    new_bulletin=false
-    if [ -n "$bulletin" ] && [ "$bulletin" != "$last_bulletin" ]; then
-        notify_state_set LAST_BULLETIN "$bulletin"
-        # First run only records the baseline; afterwards a new bulletin counts as urgent.
-        [ -n "$last_bulletin" ] && new_bulletin=true
-    fi
+    # First run records the baseline. Later, a bulletin stays "new" until it has been
+    # mentioned in an alert, so one seen while still up to date is not forgotten.
+    [ -n "$bulletin" ] && [ -z "$last_bulletin" ] && { notify_state_set LAST_BULLETIN "$bulletin"; last_bulletin="$bulletin"; }
+    new_bulletin=false; [ -n "$bulletin" ] && [ "$bulletin" != "$last_bulletin" ] && new_bulletin=true
     if [ "$lat" = "$cur" ]; then echo "up to date ($cur)"; return 0; fi
     case "$TS_NOTIFY" in daily) interval=86400 ;; weekly) interval=604800 ;; *) interval=2592000 ;; esac
-    last_at="$(notify_state LAST_NOTIFIED)"; last_at="${last_at:-0}"
-    last_ver="$(notify_state LAST_NOTIFIED_VERSION)"
+    last_at="$(num "$(notify_state LAST_NOTIFIED)")"
     reason=""
     if $new_bulletin; then reason="Tailscale published security bulletin $bulletin"
-    elif [ $((now - last_at)) -ge "$interval" ]; then reason="periodic reminder ($TS_NOTIFY)"
-    elif [ "$lat" != "$last_ver" ] && [ $((now - last_at)) -ge 86400 ]; then reason="newer release $lat"
+    elif [ $((now - last_at)) -ge "$interval" ]; then reason="reminder, $TS_NOTIFY"
     fi
     [ -z "$reason" ] && { echo "update $cur -> $lat available, reminder not due yet"; return 0; }
     text="Tailscale ${cur:-?} -> $lat is available for this NAS. Open Apps > Tailscale and press Update now. ($reason)"
     if send_alert "$text"; then
         notify_state_set LAST_NOTIFIED "$now"; notify_state_set LAST_NOTIFIED_VERSION "$lat"
+        [ -n "$bulletin" ] && notify_state_set LAST_BULLETIN "$bulletin"
         log "notified: $text"; echo "notified: $text"
     else
         echo "alert failed"; return 1

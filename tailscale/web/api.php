@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.4';
+$APP_VERSION = '1.0.5';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -26,7 +26,7 @@ $SETTING_KEYS = [
 
 function out($data, $code = 200) {
     http_response_code($code);
-    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 }
 function fail($msg, $code = 400) { out(['ok' => false, 'error' => $msg], $code); }
@@ -37,9 +37,11 @@ function ctl($args, $timeout = 120, $env = []) {
     foreach ($args as $a) $cmd .= ' ' . escapeshellarg($a);
     $cmd .= ' 2>&1';
     // The NAS has no 'timeout' binary, so run through proc_open and kill the
-    // child ourselves when it takes too long (set_time_limit does not cover exec).
+    // wrapper ourselves when it takes too long (set_time_limit does not cover exec;
+    // long-running children such as curl may outlive us, which is harmless).
     $desc = [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w']];
-    $proc = proc_open($cmd, $desc, $pipes, null, array_merge($_ENV, $env));
+    // php-fpm hands us an empty $_ENV; give the script a sane PATH plus whatever we add.
+    $proc = proc_open($cmd, $desc, $pipes, null, array_merge(['PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'], $env));
     if (!is_resource($proc)) return [127, 'could not start ctl script'];
     stream_set_blocking($pipes[1], false);
     $out = ''; $deadline = microtime(true) + $timeout;
@@ -102,7 +104,8 @@ switch ($action) {
     case 'login':
         $key = trim($_POST['authkey'] ?? '');
         if (!preg_match('/^tskey-[A-Za-z0-9_-]{10,200}$/', $key)) fail('That does not look like a Tailscale auth key (tskey-…).');
-        // Passed via the environment so the key never appears in the process list.
+        // Handed to the ctl script in its environment; it writes the key to a 0600 file
+        // and passes --auth-key=file:... so the key never appears in the process list.
         [$rc, $o] = ctl(['login'], 150, ['TS_AUTHKEY' => $key]);
         out(['ok' => $rc === 0, 'output' => $o]);
 
