@@ -45,15 +45,17 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
 3. Open **Apps → Tailscale**. The first start downloads the Tailscale binaries
    (~30 MB) in the background; the page shows the progress.
 4. Get an auth key: [Tailscale admin → Settings → Keys](https://login.tailscale.com/admin/settings/keys)
-   → **Generate auth key**. The expiration you pick there is how long the
-   *key* can be used to connect a machine (pick anything, you use it once);
-   it is not how long the NAS stays logged in. Leave "Ephemeral" off. Paste
-   the key on the app page and press **Connect**, or use the browser login
-   link instead.
+   → **Generate auth key**. In the dialog leave *Reusable* and *Ephemeral*
+   off. *Expiration* (1–90 days) is how long the *key* can be used to
+   connect a machine; you use it once, so any value is fine. It does not
+   affect how long the NAS stays logged in. Press **Generate key**, copy the
+   key, paste it on the app page and press **Connect**. Or use the browser
+   login link instead.
 
-How long the NAS stays logged in is governed by Tailscale's machine key
-expiry (180 days by default). To avoid re-authenticating, open the machine in
-the admin console and choose **Disable key expiry**.
+How long the NAS stays logged in is governed by Tailscale's *node key expiry*
+(180 days by default). To avoid re-authenticating, open the machine in the
+admin console and choose **Disable key expiry**, or generate the auth key with
+**Tags** enabled, which disables node key expiry for the device automatically.
 
 Your NAS needs internet access for the download and for Tailscale itself.
 
