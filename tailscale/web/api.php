@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.17';
+$APP_VERSION = '1.0.18';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -112,7 +112,7 @@ function write_settings($s) {
 }
 
 $action = $_GET['action'] ?? 'status';
-$mutating = !in_array($action, ['status', 'settings', 'check_update', 'check_app_update', 'update_status', 'login_url_poll', 'log', 'notify_status', 'serve_status'], true);
+$mutating = !in_array($action, ['status', 'settings', 'check_update', 'check_app_update', 'update_status', 'login_url_poll', 'log', 'notify_status', 'serve_status', 'app_update_status'], true);
 if ($mutating) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
     if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') fail('missing X-Requested-With header', 403);
@@ -233,6 +233,15 @@ switch ($action) {
         if (!is_array($data)) fail('notify status failed: ' . $o, 500);
         $data['ok'] = true;
         out($data);
+
+    case 'app_update':
+        [$rc, $o] = ctl(['app-update-bg'], 20);
+        out(['ok' => $rc === 0, 'output' => $o]);
+
+    case 'app_update_status':
+        [$rc, $o] = ctl(['app-update-status'], 10);
+        [$state, $msg] = array_pad(explode('|', trim($o), 2), 2, '');
+        out(['ok' => true, 'state' => $state, 'message' => $msg, 'version' => $APP_VERSION]);
 
     case 'serve_status':
         [$rc, $o] = ctl(['serve-status'], 20);

@@ -34,9 +34,11 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
     tailnet (logged out or machine key expired) or the machine key expires
     within a week, and an alert when a newer version of this app is on GitHub.
     The page shows the same things as a banner at the top.
-  - the page also checks GitHub for a **newer version of this app** and the
-    same alert tells you when one is out; installing the new `.bin` over the
-    old one keeps your settings and login
+  - the page also checks GitHub for a **newer version of this app**, and an
+    **Update app** button downloads the package for your model, checks it
+    against the release's SHA256SUMS and installs it with WD's own installer
+    (settings and login are kept). This skips the dashboard's manual upload,
+    which fails now and then on OS5 firmware
   - **reach the dashboard from anywhere**: WD's web server refuses visitors
     with a Tailscale address, so the app can publish the dashboard on your
     tailnet with `tailscale serve`. You then open `http://<nas-name>/` (the

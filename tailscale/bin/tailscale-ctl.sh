@@ -17,6 +17,8 @@
 #   tailscale-ctl.sh rollback               restore previous binaries
 #   tailscale-ctl.sh log [lines]
 #   tailscale-ctl.sh check-app-update       JSON: this app's version vs. the latest GitHub release
+#   tailscale-ctl.sh app-update-bg          download the latest app package from GitHub and reinstall (detached)
+#   tailscale-ctl.sh app-update-status      state|message of the last/current app update
 #   tailscale-ctl.sh notify-check           alert via the My Cloud alert system when an update is due
 #   tailscale-ctl.sh notify-test            send a test alert (bell icon + e-mail if configured)
 #   tailscale-ctl.sh notify-status          JSON about the notification scheduler
@@ -54,6 +56,8 @@ PKG_BASE="https://pkgs.tailscale.com"
 BULLETIN_FEED="https://tailscale.com/security-bulletins/index.xml"
 APP_RELEASES_API="https://api.github.com/repos/la32094uf/mycloud-tailscale/releases/latest"
 APP_RELEASES_URL="https://github.com/la32094uf/mycloud-tailscale/releases"
+APP_UPDATE_STATUS="$CONF_DIR/app_update.status"   # outside tmp/ and the app dir: survives the reinstall
+APP_UPLOAD_DIR="/usr/local/apps_upload"
 ALERT_CODE_APP_UPDATE=1501   # My Cloud alert "App Update Available", %1 = text
 MAX_LOG_BYTES=5000000
 
@@ -478,6 +482,71 @@ version_gt() { # version_gt A B  -> true if A > B
     done
     return 1
 }
+# Package name suffix used in the release assets (see build.sh): MyCloudEX2Ultra -> EX2Ultra
+model_short() {
+    m="$(sed -n 's/^modelName="\([A-Za-z0-9]*\)".*/\1/p' /etc/system.conf 2>/dev/null | head -1)"
+    m="${m#WDMyCloud}"; m="${m#MyCloud}"
+    case "$m" in ''|*[!A-Za-z0-9]*) return 1 ;; esac
+    echo "$m"
+}
+astat() { echo "$1|$2|$(date +%s)" > "$APP_UPDATE_STATUS"; log "app update: $1 $2"; }
+cmd_app_update_status() {
+    [ -f "$APP_UPDATE_STATUS" ] || { echo "idle|"; return 0; }
+    IFS='|' read -r st msg ts < "$APP_UPDATE_STATUS"
+    # A run that never reported back (killed, reboot) counts as failed after 10 minutes.
+    if [ "$st" = running ] && [ $(( $(date +%s) - $(num "$ts") )) -gt 600 ]; then st=failed; msg="app update did not finish (last step: $msg)"; fi
+    echo "$st|$msg"
+}
+cmd_app_update_bg() {
+    case "$(cmd_app_update_status)" in running*) echo "an app update is already running"; return 1 ;; esac
+    astat running "Starting…"
+    nohup sh "$SELF" app-update >/dev/null 2>&1 &
+    echo "app update started"
+}
+# Download the release package for this model, verify it against the release's
+# SHA256SUMS and hand it to WD's own installer (the one the dashboard uses too;
+# this skips the dashboard's upload step, which fails now and then on OS5).
+cmd_app_update() {
+    cur="$(app_version)"
+    astat running "Looking up the latest release…"
+    lat="$(latest_app_version)" || { astat failed "could not reach GitHub"; return 1; }
+    version_gt "$lat" "$cur" || { astat done "Already on the latest version ($cur)"; return 0; }
+    short="$(model_short)" || { astat failed "unknown NAS model"; return 1; }
+    { command -v upload_apkg >/dev/null 2>&1 && [ -d "$APP_UPLOAD_DIR" ]; } || { astat failed "WD installer not found on this firmware"; return 1; }
+    name="tailscale_${lat}_${short}.bin"
+    base="https://github.com/la32094uf/mycloud-tailscale/releases/download/v$lat"
+    work="${TMP_DIR:?}/appupd"
+    rm -rf "${work:?}"; mkdir -p "$work"
+    astat running "Downloading $name…"
+    fetch "$base/$name" "$work/$name" 10000000 || { astat failed "download failed (is there a package for $short?)"; rm -rf "${work:?}"; return 1; }
+    fetch "$base/SHA256SUMS" "$work/SHA256SUMS" || { astat failed "could not download SHA256SUMS"; rm -rf "${work:?}"; return 1; }
+    astat running "Verifying checksum…"
+    want="$(sed -n "s/^\([0-9a-f]\{64\}\)  *\.\{0,1\}\/\{0,1\}$name\$/\1/p" "$work/SHA256SUMS" | head -1)"
+    have="$(sha256_of "$work/$name")"
+    if [ -z "$want" ] || [ "$want" != "$have" ]; then astat failed "checksum mismatch"; rm -rf "${work:?}"; return 1; fi
+    pkg="${APP_UPLOAD_DIR:?}/${name:?}"
+    cp -f "$work/$name" "$pkg" || { astat failed "could not copy the package to the upload folder"; rm -rf "${work:?}"; return 1; }
+    rm -rf "${work:?}"
+    astat running "Installing $lat… Tailscale restarts and the page reloads when done"
+    # The reinstall stops this app and replaces its folder, this script included.
+    # Run WD's installer from a small helper in the persistent folder so the
+    # result can still be recorded afterwards.
+    helper="${CONF_DIR:?}/app_update_run.sh"
+    {
+        echo '#!/bin/sh'
+        echo "cd '$APP_UPLOAD_DIR' || exit 1"
+        echo "upload_apkg -r '$name' -f 1 -g tailscale -m >/dev/null 2>&1"
+        echo 'rc="$(cat /tmp/upload_apkg_status 2>/dev/null)"'
+        echo "rm -f '$pkg'"
+        echo "if [ \"\$rc\" = 1 ]; then echo \"done|Updated the app from $cur to $lat|\$(date +%s)\" > '$APP_UPDATE_STATUS'"
+        echo "else echo \"failed|WD installer reported status \$rc|\$(date +%s)\" > '$APP_UPDATE_STATUS'; fi"
+        echo "rm -f '$helper'"
+    } > "$helper"
+    chmod 700 "$helper"
+    nohup sh "$helper" >/dev/null 2>&1 &
+    echo "installing $lat"
+}
+
 cmd_check_app_update() {
     cur="$(app_version)"; lat="$(latest_app_version)"
     err=""; [ -z "$lat" ] && err="could not reach GitHub"
@@ -593,7 +662,7 @@ cmd_notify_check() {
     if [ -n "$alat" ] && version_gt "$alat" "$acur"; then
         alast="$(num "$(notify_state LAST_APP_NOTIFIED)")"
         if [ $((now - alast)) -ge "$interval" ] || [ "$(notify_state LAST_APP_NOTIFIED_VERSION)" != "$alat" ]; then
-            if send_alert "Tailscale app $alat is out (you have $acur). See Apps / Tailscale on the dashboard for the download link."; then
+            if send_alert "Tailscale app $alat is out (you have $acur). Open Apps / Tailscale on the dashboard and press Update app."; then
                 notify_state_set LAST_APP_NOTIFIED "$now"; notify_state_set LAST_APP_NOTIFIED_VERSION "$alat"; log "notified app update $acur -> $alat"
             fi
         fi
@@ -653,6 +722,9 @@ case "${1:-}" in
     serve-status) cmd_serve_status ;;
     check-update) cmd_check_update ;;
     check-app-update) cmd_check_app_update ;;
+    app-update) cmd_app_update ;;
+    app-update-bg) cmd_app_update_bg ;;
+    app-update-status) cmd_app_update_status ;;
     update) cmd_update "${2:-}" ;;
     update-bg) cmd_update_bg "${2:-}" ;;
     update-status) cmd_update_status ;;

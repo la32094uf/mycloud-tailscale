@@ -323,13 +323,39 @@
       .then(function () { busy(false); return loadServe(); });
   });
 
+  // ---- in-place app update ---------------------------------------------
+  function startAppUpdate() {
+    if (!window.confirm('Update this app now? Tailscale restarts for a few seconds and the page reloads when the update is done.')) return;
+    busy(true);
+    api('app_update', {}).then(function (r) {
+      if (!r.ok) { busy(false); toast(r.output || 'Could not start the update', true); return; }
+      watchAppUpdate();
+    }).catch(function (e) { busy(false); toast(e.message, true); });
+  }
+  function watchAppUpdate() {
+    var polls = 0, last = '';
+    setBanner('app', '<strong>Updating this app…</strong> <span id="ts-app-upd-msg">starting</span>', false);
+    var t = setInterval(function () {
+      if (!alive()) { clearInterval(t); return; }
+      if (++polls > 150) { clearInterval(t); busy(false); setBanner('app', '<strong>The app update is taking long.</strong> Reload the page in a minute to see the result.', true); return; }
+      // During the reinstall the page's own files are briefly missing: ignore errors and keep polling.
+      api('app_update_status').then(function (r) {
+        var m = $('ts-app-upd-msg'); if (m && r.message !== last) { m.textContent = r.message; last = r.message; }
+        if (r.state === 'done') { clearInterval(t); setBanner('app', '<strong>' + esc(r.message) + '.</strong> Reloading…', false); setTimeout(function () { location.reload(); }, 2500); }
+        else if (r.state === 'failed') { clearInterval(t); busy(false); setBanner('app', '<strong>App update failed:</strong> ' + esc(r.message) + '. You can still install the .bin manually via Apps → Install an app manually.', true); }
+      }).catch(function () {});
+    }, 2000);
+  }
+
   // ---- app (package) update -------------------------------------------
   function checkAppUpdate() {
     api('check_app_update').then(function (r) {
       var el = $('ts-app-update');
       if (r.update_available) {
         el.textContent = 'newer app version available: ' + r.latest;
-        setBanner('app', '<strong>New version of this app: ' + esc(r.latest) + '</strong> (you have ' + esc(r.installed) + '). <a href="' + esc(r.url) + '" target="_blank" rel="noopener">Download the .bin for your model</a>, then install it via Apps → Install an app manually. Your login and settings are kept.', false);
+        setBanner('app', '<strong>New version of this app: ' + esc(r.latest) + '</strong> (you have ' + esc(r.installed) + '). <button class="ts-btn ts-primary" id="ts-app-update-btn">Update app</button><br><small>Downloads the package for your model from GitHub, checks it and installs it. Your login and settings are kept. Manual alternative: <a href="' + esc(r.url) + '" target="_blank" rel="noopener">download the .bin</a> and use Apps → Install an app manually.</small>', false);
+        var btn = $('ts-app-update-btn');
+        if (btn) { btn.dataset.keep = '1'; btn.addEventListener('click', startAppUpdate); }
       } else {
         el.textContent = 'app is up to date';
         setBanner('app', null);
@@ -338,6 +364,7 @@
   }
 
   // ---- boot -------------------------------------------------------------
+  api('app_update_status').then(function (r) { if (r.state === 'running') { busy(true); watchAppUpdate(); } }).catch(function () {});
   loadStatus().then(function (s) {
     // If an update/download was in flight when the page opened, keep following it.
     if (s && s.updating) { $('ts-upd-log').textContent = ''; watchUpdate(); }
