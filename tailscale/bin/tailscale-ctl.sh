@@ -74,7 +74,7 @@ die() { echo "ERROR: $*" >&2; log "ERROR: $*"; exit 1; }
 
 # --- settings -------------------------------------------------------------
 TS_HOSTNAME=""; TS_ACCEPT_ROUTES=0; TS_ADVERTISE_ROUTES=""; TS_ADVERTISE_EXIT_NODE=0
-TS_ACCEPT_DNS=0; TS_SSH=0; TS_EXTRA_UP_ARGS=""; TS_EXTRA_DAEMON_ARGS=""; TS_CHANNEL=stable; TS_NOTIFY=monthly
+TS_ACCEPT_DNS=0; TS_SSH=0; TS_EXTRA_UP_ARGS=""; TS_EXTRA_DAEMON_ARGS=""; TS_CHANNEL=stable; TS_NOTIFY=monthly; TS_AUTO_UPDATE=0
 # Characters allowed in values (same whitelist as the settings page enforces).
 clean_flags() { printf '%s' "$1" | tr -d '\r' | tr -cd 'A-Za-z0-9=.,:/_@+ -'; }
 clean_word()  { printf '%s' "$1" | tr -d '\r' | tr -cd 'A-Za-z0-9.:/,_-'; }
@@ -95,6 +95,7 @@ load_settings() {
             TS_EXTRA_DAEMON_ARGS) TS_EXTRA_DAEMON_ARGS="$(clean_flags "$v")" ;;
             TS_CHANNEL) TS_CHANNEL="$(clean_word "$v")" ;;
             TS_NOTIFY) TS_NOTIFY="$(clean_word "$v")" ;;
+            TS_AUTO_UPDATE) TS_AUTO_UPDATE="$(clean_word "$v")" ;;
         esac
     done < "$SETTINGS"
     case "$TS_CHANNEL" in stable|unstable) ;; *) TS_CHANNEL=stable ;; esac
@@ -546,7 +547,8 @@ cmd_notify_check() {
     load_settings
     now="$(date +%s)"
     notify_state_set LAST_CHECK "$now"
-    [ "$TS_NOTIFY" = off ] && { echo "notifications off"; return 0; }
+    auto="$(bool "$TS_AUTO_UPDATE")"
+    [ "$TS_NOTIFY" = off ] && [ "$auto" != true ] && { echo "notifications off"; return 0; }
     notify_login_check "$now"
     cur="$(installed_version)"; lat="$(latest_version)"
     [ -z "$lat" ] && { echo "could not fetch latest version"; return 1; }
@@ -567,6 +569,21 @@ cmd_notify_check() {
         fi
     fi
     if [ "$lat" = "$cur" ]; then echo "up to date ($cur)"; return 0; fi
+    # Automatic Tailscale updates: install a newer release right away and report the result.
+    if [ "$auto" = true ] && [ -n "$cur" ] && version_gt "$lat" "$cur" && ! lock_held; then
+        log "auto-update: $cur -> $lat"
+        if cmd_update "$lat" >/dev/null 2>&1 && [ "$(installed_version)" = "$lat" ]; then
+            extra=""; $new_bulletin && extra=" Security bulletin $bulletin."
+            send_alert "Tailscale on this NAS was updated automatically from $cur to $lat.$extra"
+            [ -n "$bulletin" ] && notify_state_set LAST_BULLETIN "$bulletin"
+            notify_state_set LAST_NOTIFIED "$now"; notify_state_set LAST_NOTIFIED_VERSION "$lat"
+            echo "auto-updated $cur -> $lat"; return 0
+        fi
+        send_alert "Tailscale automatic update $cur to $lat failed on this NAS. See Apps / Tailscale for details."
+        log "auto-update failed: $(cmd_update_status)"
+        echo "auto-update failed"; return 1
+    fi
+    [ "$TS_NOTIFY" = off ] && { echo "update $cur -> $lat available, reminders off"; return 0; }
     last_at="$(num "$(notify_state LAST_NOTIFIED)")"
     reason=""
     if $new_bulletin; then reason="Security bulletin $bulletin."
@@ -588,8 +605,8 @@ cmd_notify_test() {
 cmd_notify_status() {
     load_settings
     exp="$(key_expiry_epoch 2>/dev/null)"; left=""; [ -n "$exp" ] && left=$(( (exp - $(date +%s)) / 86400 ))
-    printf '{"mode":"%s","loop_running":%s,"last_check":"%s","last_notified":"%s","last_notified_version":"%s","last_bulletin":"%s","last_app_notified":"%s","last_connected":"%s","key_expiry":"%s","key_days_left":"%s","alert_tool":%s}\n' \
-        "$TS_NOTIFY" "$(notify_loop_pid >/dev/null && echo true || echo false)" "$(notify_state LAST_CHECK)" "$(notify_state LAST_NOTIFIED)" "$(notify_state LAST_NOTIFIED_VERSION)" "$(notify_state LAST_BULLETIN)" "$(notify_state LAST_APP_NOTIFIED)" "$(notify_state LAST_CONNECTED)" "$exp" "$left" "$(command -v fireAlert >/dev/null 2>&1 && echo true || echo false)"
+    printf '{"mode":"%s","auto_update":%s,"loop_running":%s,"last_check":"%s","last_notified":"%s","last_notified_version":"%s","last_bulletin":"%s","last_app_notified":"%s","last_connected":"%s","key_expiry":"%s","key_days_left":"%s","alert_tool":%s}\n' \
+        "$TS_NOTIFY" "$(bool "$TS_AUTO_UPDATE")" "$(notify_loop_pid >/dev/null && echo true || echo false)" "$(notify_state LAST_CHECK)" "$(notify_state LAST_NOTIFIED)" "$(notify_state LAST_NOTIFIED_VERSION)" "$(notify_state LAST_BULLETIN)" "$(notify_state LAST_APP_NOTIFIED)" "$(notify_state LAST_CONNECTED)" "$exp" "$left" "$(command -v fireAlert >/dev/null 2>&1 && echo true || echo false)"
 }
 
 case "${1:-}" in

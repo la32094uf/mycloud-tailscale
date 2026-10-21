@@ -16,3 +16,5 @@ TS_CHANNEL=stable
 # Update notifications via the My Cloud alert system (bell icon + alert e-mail):
 # off | daily | weekly | monthly. A new Tailscale security bulletin always alerts at once.
 TS_NOTIFY=monthly
+# Install new Tailscale releases automatically (the background check runs every 6 hours): 0 or 1
+TS_AUTO_UPDATE=0

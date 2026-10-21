@@ -213,12 +213,20 @@
   function loadNotify() {
     return api('notify_status').then(function (r) {
       $('ts-notify').value = r.mode || 'monthly';
+      $('ts-auto-update').checked = r.auto_update === true;
       var info = 'Last check: ' + fmtTs(r.last_check) + ' · last alert: ' + fmtTs(r.last_notified) + (r.last_notified_version ? ' (for ' + r.last_notified_version + ')' : '') +
         ' · newest bulletin seen: ' + (r.last_bulletin || '–') + (r.key_days_left !== '' ? ' · machine key expires in ' + r.key_days_left + ' days' : '') + (r.loop_running ? '' : ' · scheduler not running (start the app)') +
         (r.alert_tool ? '' : ' · this firmware has no alert tool');
       $('ts-notify-info').textContent = info;
     }).catch(function (e) { $('ts-notify-info').textContent = e.message; });
   }
+  $('ts-auto-update').addEventListener('change', function () {
+    var on = $('ts-auto-update').checked;
+    busy(true);
+    api('save_settings', { TS_AUTO_UPDATE: on ? '1' : '0' }).then(function () { toast(on ? 'Tailscale updates will be installed automatically.' : 'Automatic updates off.'); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(false); return loadNotify(); });
+  });
   $('ts-notify-save-btn').addEventListener('click', function () {
     busy(true);
     api('save_settings', { TS_NOTIFY: $('ts-notify').value }).then(function () { toast('Notification setting saved.'); })

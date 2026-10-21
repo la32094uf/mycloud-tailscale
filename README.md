@@ -18,6 +18,9 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
   - change **machine name**, **accept routes**, **MagicDNS**, **advertise
     routes**, **Tailscale SSH**, **exit node** (only on models whose kernel
     has a NAT table; the page tells you), plus free-form extra flags
+  - optionally **install Tailscale updates automatically**: the background
+    check (every 6 hours) installs a newer release and alerts you that it did,
+    or that it failed; roll back stays available
   - **update the Tailscale binaries in place** when a new release is out
     (HTTPS only, SHA-256 checked against the checksum pkgs.tailscale.com
     publishes) and one-click **roll back** to the previous version.

@@ -77,6 +77,7 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
         <tr><th>Latest</th><td id="ts-upd-latest">–</td></tr>
         <tr><th>Previous</th><td id="ts-upd-prev">–</td></tr>
       </table>
+      <label class="ts-inline-label" style="margin:6px 0 10px"><input type="checkbox" id="ts-auto-update"> Install Tailscale updates automatically <span class="ts-help">(the background check runs every 6 hours; you get an alert when it happened)</span></label>
       <div class="ts-actions">
         <button class="ts-btn ts-secondary" id="ts-check-btn">Check for updates</button>
         <button class="ts-btn ts-primary" id="ts-update-btn" disabled>Update now</button>
