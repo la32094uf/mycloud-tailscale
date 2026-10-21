@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.15';
+$APP_VERSION = '1.0.16';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -69,7 +69,11 @@ function own_names() {
     if (is_executable($ts)) {
         exec(escapeshellarg($ts) . ' --socket=/var/run/tailscale/tailscaled.sock status --json 2>/dev/null', $js);
         $self = preg_replace('/^.*?"Self": \{(.*?)\n  \}.*$/s', '$1', implode("\n", $js));
-        if (preg_match('/"DNSName": *"([A-Za-z0-9.-]+)"/', $self, $m)) $names[] = strtolower(rtrim($m[1], '.'));
+        if (preg_match('/"DNSName": *"([A-Za-z0-9.-]+)"/', $self, $m)) {
+            $dns = strtolower(rtrim($m[1], '.'));
+            $names[] = $dns;
+            $names[] = explode('.', $dns)[0];   // MagicDNS short name, e.g. "nas-2"
+        }
         if (preg_match('/"HostName": *"([A-Za-z0-9.-]+)"/', $self, $m)) $names[] = strtolower($m[1]);
     }
     return array_values(array_filter(array_unique($names)));

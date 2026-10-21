@@ -325,9 +325,11 @@ cmd_serve_status() {
     if [ -x "$TS" ] && is_running; then
         serve_active && active=true
         dns="$("$TS" --socket="$SOCK" status --json 2>/dev/null | sed -n '/"Self": {/,/^  }/p' | sed -n 's/.*"DNSName": *"\([^"]*\)".*/\1/p' | head -1)"
-        dns="${dns%.}"; [ -n "$dns" ] && url="http://$dns/"
+        # Browsers force HTTPS for *.ts.net (HSTS preload), and plain-HTTP serve has no
+        # certificate, so hand out the short MagicDNS name: http://<name>/ works everywhere.
+        dns="${dns%.}"; [ -n "$dns" ] && url="http://${dns%%.*}/"
     fi
-    printf '{"enabled":%s,"active":%s,"url":"%s"}\n' "$(bool "$TS_SERVE_DASHBOARD")" "$active" "$url"
+    printf '{"enabled":%s,"active":%s,"url":"%s","fqdn":"%s"}\n' "$(bool "$TS_SERVE_DASHBOARD")" "$active" "$url" "$dns"
 }
 
 # --- updates --------------------------------------------------------------

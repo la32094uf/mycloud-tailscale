@@ -39,8 +39,10 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
     old one keeps your settings and login
   - **reach the dashboard from anywhere**: WD's web server refuses visitors
     with a Tailscale address, so the app can publish the dashboard on your
-    tailnet with `tailscale serve`. You then open
-    `http://<nas-name>.<tailnet>.ts.net/` from any device running Tailscale.
+    tailnet with `tailscale serve`. You then open `http://<nas-name>/` (the
+    short MagicDNS name, e.g. `http://mycloud/`) from any device running
+    Tailscale. Use the short name: browsers force HTTPS for `*.ts.net` names
+    and this proxy is plain HTTP inside the encrypted tailnet.
   - view the daemon log
 - The Tailscale binaries are **downloaded on first start** from
   `pkgs.tailscale.com` for your CPU (arm, arm64, amd64), so the app package

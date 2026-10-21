@@ -285,7 +285,7 @@
     return api('serve_status').then(function (r) {
       $('ts-serve').checked = r.enabled === true;
       var el = $('ts-serve-info');
-      if (r.enabled && r.active && r.url) el.innerHTML = 'Dashboard URL on your tailnet: <a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.url) + '</a> (works from any device where Tailscale is connected).';
+      if (r.enabled && r.active && r.url) el.innerHTML = 'Dashboard URL on your tailnet: <a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.url) + '</a> (from any device where Tailscale is connected; MagicDNS must be on). Use this short name: browsers force HTTPS for the long ' + esc(r.fqdn || '…ts.net') + ' name, and this proxy is plain HTTP inside the already encrypted tailnet.';
       else if (r.enabled) el.textContent = 'Enabled; it becomes active once Tailscale is connected.';
       else el.textContent = '';
     }).catch(function (e) { $('ts-serve-info').textContent = e.message; });
