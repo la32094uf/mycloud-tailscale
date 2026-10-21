@@ -8,7 +8,8 @@
 #   tailscale-ctl.sh login-url              start browser login, prints URL when ready
 #   tailscale-ctl.sh login-url-poll         print URL if available
 #   tailscale-ctl.sh logout
-#   tailscale-ctl.sh apply                  push settings.conf via 'tailscale set'
+#   tailscale-ctl.sh apply                  push settings.conf via 'tailscale set' (and the dashboard serve setting)
+#   tailscale-ctl.sh serve-status           JSON: is the dashboard published on the tailnet, and under which URL
 #   tailscale-ctl.sh check-update           JSON: installed/latest/update_available
 #   tailscale-ctl.sh update [version]       download+verify+swap binaries (takes a lock)
 #   tailscale-ctl.sh update-bg [version]    same, detached; progress in update-status
@@ -74,7 +75,7 @@ die() { echo "ERROR: $*" >&2; log "ERROR: $*"; exit 1; }
 
 # --- settings -------------------------------------------------------------
 TS_HOSTNAME=""; TS_ACCEPT_ROUTES=0; TS_ADVERTISE_ROUTES=""; TS_ADVERTISE_EXIT_NODE=0
-TS_ACCEPT_DNS=0; TS_SSH=0; TS_EXTRA_UP_ARGS=""; TS_EXTRA_DAEMON_ARGS=""; TS_CHANNEL=stable; TS_NOTIFY=monthly; TS_AUTO_UPDATE=0
+TS_ACCEPT_DNS=0; TS_SSH=0; TS_EXTRA_UP_ARGS=""; TS_EXTRA_DAEMON_ARGS=""; TS_CHANNEL=stable; TS_NOTIFY=monthly; TS_AUTO_UPDATE=0; TS_SERVE_DASHBOARD=0
 # Characters allowed in values (same whitelist as the settings page enforces).
 clean_flags() { printf '%s' "$1" | tr -d '\r' | tr -cd 'A-Za-z0-9=.,:/_@+ -'; }
 clean_word()  { printf '%s' "$1" | tr -d '\r' | tr -cd 'A-Za-z0-9.:/,_-'; }
@@ -96,6 +97,7 @@ load_settings() {
             TS_CHANNEL) TS_CHANNEL="$(clean_word "$v")" ;;
             TS_NOTIFY) TS_NOTIFY="$(clean_word "$v")" ;;
             TS_AUTO_UPDATE) TS_AUTO_UPDATE="$(clean_word "$v")" ;;
+            TS_SERVE_DASHBOARD) TS_SERVE_DASHBOARD="$(clean_word "$v")" ;;
         esac
     done < "$SETTINGS"
     case "$TS_CHANNEL" in stable|unstable) ;; *) TS_CHANNEL=stable ;; esac
@@ -215,6 +217,7 @@ cmd_start() {
     echo "started (pid $!)"
     # tailscaled creates its control socket 0666; only root should drive it on a NAS.
     wait_for_socket >/dev/null 2>&1 && chmod 600 "$SOCK" 2>/dev/null
+    apply_serve
     notify_loop_start
 }
 cmd_stop() {
@@ -300,6 +303,31 @@ cmd_apply() {
     is_running || die "daemon not running"
     # shellcheck disable=SC2046
     "$TS" --socket="$SOCK" set $(pref_flags) 2>&1
+    apply_serve
+}
+# Dashboard over the tailnet. WD's nasAdmin refuses requests from non-LAN addresses
+# (Tailscale's 100.x range counts as "public"), so 'tailscale serve' proxies tailnet
+# requests to 127.0.0.1:80, which nasAdmin accepts. The serve config lives in
+# tailscaled's state and survives restarts; we only switch it on or off here.
+serve_active() { "$TS" --socket="$SOCK" serve status 2>/dev/null | grep -q "proxy http://127.0.0.1:80"; }
+apply_serve() {
+    [ -x "$TS" ] && is_running || return 0
+    if [ "$(bool "$TS_SERVE_DASHBOARD")" = true ]; then
+        serve_active || { "$TS" --socket="$SOCK" serve --bg --http=80 http://127.0.0.1:80 >/dev/null 2>&1 </dev/null && log "dashboard published on the tailnet"; }
+    else
+        serve_active && { "$TS" --socket="$SOCK" serve --http=80 off >/dev/null 2>&1 </dev/null; log "dashboard no longer published on the tailnet"; }
+    fi
+    return 0
+}
+cmd_serve_status() {
+    load_settings
+    active=false; url=""
+    if [ -x "$TS" ] && is_running; then
+        serve_active && active=true
+        dns="$("$TS" --socket="$SOCK" status --json 2>/dev/null | sed -n '/"Self": {/,/^  }/p' | sed -n 's/.*"DNSName": *"\([^"]*\)".*/\1/p' | head -1)"
+        dns="${dns%.}"; [ -n "$dns" ] && url="http://$dns/"
+    fi
+    printf '{"enabled":%s,"active":%s,"url":"%s"}\n' "$(bool "$TS_SERVE_DASHBOARD")" "$active" "$url"
 }
 
 # --- updates --------------------------------------------------------------
@@ -620,6 +648,7 @@ case "${1:-}" in
     login-url-poll) cmd_login_url_poll ;;
     logout) cmd_logout ;;
     apply) cmd_apply ;;
+    serve-status) cmd_serve_status ;;
     check-update) cmd_check_update ;;
     check-app-update) cmd_check_app_update ;;
     update) cmd_update "${2:-}" ;;

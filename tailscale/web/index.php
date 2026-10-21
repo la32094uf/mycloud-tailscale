@@ -46,6 +46,13 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
   </div>
 
   <div class="ts-row">
+    <div class="ts-card" id="ts-remote-card">
+      <h3>Remote access to this dashboard</h3>
+      <p class="ts-help">The My Cloud web server refuses visitors with a Tailscale address, so opening the dashboard over your tailnet gives a blank or forbidden page. With this option the NAS publishes its dashboard on the tailnet itself (via <code>tailscale serve</code>), so you can log in from anywhere Tailscale is running. Only devices in your tailnet can reach it; the traffic is encrypted by Tailscale.</p>
+      <label class="ts-inline-label"><input type="checkbox" id="ts-serve"> Make the dashboard reachable over the tailnet</label>
+      <p class="ts-help" id="ts-serve-info"></p>
+    </div>
+
     <div class="ts-card" id="ts-settings-card">
       <h3>Settings</h3>
       <form id="ts-settings-form" onsubmit="return false;">

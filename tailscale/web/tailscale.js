@@ -280,6 +280,24 @@
     } else setBanner('login', null);
   }
 
+  // ---- dashboard over the tailnet ---------------------------------------
+  function loadServe() {
+    return api('serve_status').then(function (r) {
+      $('ts-serve').checked = r.enabled === true;
+      var el = $('ts-serve-info');
+      if (r.enabled && r.active && r.url) el.innerHTML = 'Dashboard URL on your tailnet: <a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.url) + '</a> (works from any device where Tailscale is connected).';
+      else if (r.enabled) el.textContent = 'Enabled; it becomes active once Tailscale is connected.';
+      else el.textContent = '';
+    }).catch(function (e) { $('ts-serve-info').textContent = e.message; });
+  }
+  $('ts-serve').addEventListener('change', function () {
+    var on = $('ts-serve').checked;
+    busy(true);
+    api('save_settings', { TS_SERVE_DASHBOARD: on ? '1' : '0' }).then(function () { toast(on ? 'Dashboard published on your tailnet.' : 'Dashboard no longer published on the tailnet.'); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(false); return loadServe(); });
+  });
+
   // ---- app (package) update -------------------------------------------
   function checkAppUpdate() {
     api('check_app_update').then(function (r) {
@@ -301,6 +319,7 @@
   });
   loadSettings();
   loadNotify();
+  loadServe();
   loadLog();
   checkAppUpdate();
 })();

@@ -18,3 +18,6 @@ TS_CHANNEL=stable
 TS_NOTIFY=monthly
 # Install new Tailscale releases automatically (the background check runs every 6 hours): 0 or 1
 TS_AUTO_UPDATE=0
+# Publish the My Cloud dashboard on your tailnet via 'tailscale serve' (0 or 1).
+# Needed to reach the dashboard remotely: WD's web server refuses Tailscale addresses directly.
+TS_SERVE_DASHBOARD=0

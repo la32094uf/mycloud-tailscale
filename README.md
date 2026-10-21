@@ -37,6 +37,10 @@ DL2100, Mirror Gen2) with a settings page inside the My Cloud dashboard.
   - the page also checks GitHub for a **newer version of this app** and the
     same alert tells you when one is out; installing the new `.bin` over the
     old one keeps your settings and login
+  - **reach the dashboard from anywhere**: WD's web server refuses visitors
+    with a Tailscale address, so the app can publish the dashboard on your
+    tailnet with `tailscale serve`. You then open
+    `http://<nas-name>.<tailnet>.ts.net/` from any device running Tailscale.
   - view the daemon log
 - The Tailscale binaries are **downloaded on first start** from
   `pkgs.tailscale.com` for your CPU (arm, arm64, amd64), so the app package
@@ -86,8 +90,10 @@ still listed there. Installing a newer app package over the existing one keeps
   name from other devices.
 - The dashboard's **Run App** switch stops and starts the daemon too. Note that
   an app switched off there does not start at boot.
-- Once connected, everything the NAS serves (the dashboard on port 80/443,
-  SMB, Plex, ...) is reachable from your tailnet. Use Tailscale ACLs to limit
+- Once connected, services on the NAS (SMB, Plex, ...) are reachable from
+  your tailnet. The dashboard itself is not, unless you enable "Make the
+  dashboard reachable over the tailnet" on the app page: WD's nasAdmin treats
+  Tailscale's 100.x addresses as public and refuses them. Use Tailscale ACLs to limit
   who may reach those ports.
 - On OS5 the apps folder `Nas_Prog` is world-writable, so any local user with
   a shell could tamper with any app's files. This app refuses to start binaries

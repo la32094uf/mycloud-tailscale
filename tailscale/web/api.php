@@ -16,12 +16,12 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.14';
+$APP_VERSION = '1.0.15';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
     'TS_HOSTNAME', 'TS_ACCEPT_ROUTES', 'TS_ADVERTISE_ROUTES', 'TS_ADVERTISE_EXIT_NODE',
-    'TS_ACCEPT_DNS', 'TS_SSH', 'TS_EXTRA_UP_ARGS', 'TS_EXTRA_DAEMON_ARGS', 'TS_CHANNEL', 'TS_NOTIFY', 'TS_AUTO_UPDATE',
+    'TS_ACCEPT_DNS', 'TS_SSH', 'TS_EXTRA_UP_ARGS', 'TS_EXTRA_DAEMON_ARGS', 'TS_CHANNEL', 'TS_NOTIFY', 'TS_AUTO_UPDATE', 'TS_SERVE_DASHBOARD',
 ];
 
 function out($data, $code = 200) {
@@ -62,6 +62,16 @@ function own_names() {
     foreach ($lines as $l) {
         if (preg_match('/\binet6?\s+([0-9a-fA-F:.]+)/', $l, $m)) $names[] = strtolower($m[1]);
     }
+    // The NAS's own Tailscale names (MagicDNS name such as nas-2.tailxxxx.ts.net, and its
+    // Tailscale hostname), so the page also works when the dashboard is opened over the tailnet.
+    global $CONF_DIR;
+    $ts = $CONF_DIR . '/bin/tailscale';
+    if (is_executable($ts)) {
+        exec(escapeshellarg($ts) . ' --socket=/var/run/tailscale/tailscaled.sock status --json 2>/dev/null', $js);
+        $self = preg_replace('/^.*?"Self": \{(.*?)\n  \}.*$/s', '$1', implode("\n", $js));
+        if (preg_match('/"DNSName": *"([A-Za-z0-9.-]+)"/', $self, $m)) $names[] = strtolower(rtrim($m[1], '.'));
+        if (preg_match('/"HostName": *"([A-Za-z0-9.-]+)"/', $self, $m)) $names[] = strtolower($m[1]);
+    }
     return array_values(array_filter(array_unique($names)));
 }
 function host_matches($host) {
@@ -98,7 +108,7 @@ function write_settings($s) {
 }
 
 $action = $_GET['action'] ?? 'status';
-$mutating = !in_array($action, ['status', 'settings', 'check_update', 'check_app_update', 'update_status', 'login_url_poll', 'log', 'notify_status'], true);
+$mutating = !in_array($action, ['status', 'settings', 'check_update', 'check_app_update', 'update_status', 'login_url_poll', 'log', 'notify_status', 'serve_status'], true);
 if ($mutating) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
     if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') fail('missing X-Requested-With header', 403);
@@ -160,7 +170,7 @@ switch ($action) {
             if (!array_key_exists($k, $_POST)) continue;
             $v = trim((string)$_POST[$k]);
             switch ($k) {
-                case 'TS_ACCEPT_ROUTES': case 'TS_ADVERTISE_EXIT_NODE': case 'TS_ACCEPT_DNS': case 'TS_SSH': case 'TS_AUTO_UPDATE':
+                case 'TS_ACCEPT_ROUTES': case 'TS_ADVERTISE_EXIT_NODE': case 'TS_ACCEPT_DNS': case 'TS_SSH': case 'TS_AUTO_UPDATE': case 'TS_SERVE_DASHBOARD':
                     $v = in_array(strtolower($v), ['1', 'true', 'on', 'yes'], true) ? '1' : '0'; break;
                 case 'TS_HOSTNAME':
                     if ($v !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/D', $v)) fail('Machine name may only contain letters, digits and dashes.'); break;
@@ -217,6 +227,13 @@ switch ($action) {
         [$rc, $o] = ctl(['notify-status'], 10);
         $data = json_decode($o, true);
         if (!is_array($data)) fail('notify status failed: ' . $o, 500);
+        $data['ok'] = true;
+        out($data);
+
+    case 'serve_status':
+        [$rc, $o] = ctl(['serve-status'], 20);
+        $data = json_decode($o, true);
+        if (!is_array($data)) fail('serve status failed: ' . $o, 500);
         $data['ok'] = true;
         out($data);
 
