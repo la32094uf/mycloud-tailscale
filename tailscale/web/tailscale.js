@@ -76,6 +76,7 @@
       $('ts-upd-prev').textContent = s.previous_version || '–';
       $('ts-rollback-btn').disabled = !s.previous_version;
       loginBanner(s);
+      lastStatus = s; loginCard(s);
       return s;
     }).catch(function (e) { toast(e.message, true); });
   }
@@ -264,6 +265,30 @@
     b.style.display = '';
   }
   function setBanner(key, html, red) { if (html) bannerParts[key] = { html: html, red: !!red }; else delete bannerParts[key]; renderBanner(); }
+
+  // Login card: compact when connected, full instructions otherwise.
+  var loginFormRequested = false;
+  function loginCard(s) {
+    var st = s.status || {}; var self = st.Self || {};
+    var connected = s.daemon_running && st.BackendState === 'Running';
+    $('ts-login-connected').style.display = connected ? '' : 'none';
+    $('ts-login-form').style.display = (!connected || loginFormRequested) ? '' : 'none';
+    $('ts-login-switch-note').style.display = (connected && loginFormRequested) ? '' : 'none';
+    $('ts-login-show-btn').textContent = loginFormRequested ? 'Hide login options' : 'Log in with another account…';
+    if (connected) {
+      var users = st.User || {}; var u = users[self.UserID] || {};
+      $('ts-login-user').textContent = u.LoginName || (st.CurrentTailnet && st.CurrentTailnet.Name) || 'your tailnet';
+      var exp = self.KeyExpiry ? new Date(self.KeyExpiry) : null;
+      $('ts-login-expiry').textContent = exp && exp.getFullYear() > 2000 ? ' · machine key valid until ' + exp.toLocaleDateString() : ' · key expiry disabled';
+    } else {
+      loginFormRequested = false;
+    }
+  }
+  var lastStatus = null;
+  $('ts-login-show-btn').addEventListener('click', function () {
+    loginFormRequested = !loginFormRequested;
+    if (lastStatus) loginCard(lastStatus);
+  });
 
   function loginBanner(s) {
     var st = s.status || {}; var self = st.Self || {};

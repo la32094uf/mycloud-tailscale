@@ -29,18 +29,27 @@ if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents(dirname(dirname(realpa
 
     <div class="ts-card" id="ts-login-card">
       <h3>Login</h3>
-      <p class="ts-help">Go to <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" rel="noopener">Tailscale admin → Settings → Keys</a> and press <strong>Generate auth key</strong>. In the dialog: leave <em>Reusable</em> and <em>Ephemeral</em> off; <em>Expiration</em> (1–90 days) only says how long this key can be used to connect a machine, it does not affect how long the NAS stays logged in. Press <strong>Generate key</strong>, copy the key and paste it here. The key is written to a root-only temporary file during login and deleted right after; it is not kept.</p>
-      <p class="ts-help">How long the NAS stays logged in is set by Tailscale's <em>node key expiry</em> (180 days by default). To never re-authenticate, open the machine in the admin console and choose <em>Disable key expiry</em>, or generate the key with <em>Tags</em> enabled, which disables node key expiry automatically.</p>
-      <div class="ts-field">
-        <input type="password" id="ts-authkey" placeholder="tskey-auth-…" autocomplete="off" spellcheck="false">
-        <button class="ts-btn ts-primary" id="ts-login-btn">Connect with auth key</button>
+      <!-- Shown while connected: compact summary only -->
+      <div id="ts-login-connected" style="display:none">
+        <p>Logged in as <strong id="ts-login-user">–</strong><span id="ts-login-expiry"></span>.</p>
+        <div class="ts-actions">
+          <button class="ts-btn ts-danger" id="ts-logout-btn">Log out of Tailscale</button>
+          <button class="ts-btn ts-secondary" id="ts-login-show-btn">Log in with another account…</button>
+        </div>
       </div>
-      <div class="ts-field">
-        <button class="ts-btn ts-secondary" id="ts-loginurl-btn">Get a browser login link instead</button>
-        <span id="ts-loginurl"></span>
-      </div>
-      <div class="ts-field">
-        <button class="ts-btn ts-danger" id="ts-logout-btn">Log out of Tailscale</button>
+      <!-- Shown while not connected (or on request): full instructions -->
+      <div id="ts-login-form">
+        <p class="ts-help">Go to <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" rel="noopener">Tailscale admin → Settings → Keys</a> and press <strong>Generate auth key</strong>. In the dialog: leave <em>Reusable</em> and <em>Ephemeral</em> off; <em>Expiration</em> (1–90 days) only says how long this key can be used to connect a machine, it does not affect how long the NAS stays logged in. Press <strong>Generate key</strong>, copy the key and paste it here. The key is written to a root-only temporary file during login and deleted right after; it is not kept.</p>
+        <p class="ts-help">How long the NAS stays logged in is set by Tailscale's <em>node key expiry</em> (180 days by default). To never re-authenticate, open the machine in the admin console and choose <em>Disable key expiry</em>, or generate the key with <em>Tags</em> enabled, which disables node key expiry automatically.</p>
+        <p class="ts-help" id="ts-login-switch-note" style="display:none"><strong>This NAS is already connected.</strong> To switch to another tailnet, log out first, then connect with the new key.</p>
+        <div class="ts-field">
+          <input type="password" id="ts-authkey" placeholder="tskey-auth-…" autocomplete="off" spellcheck="false">
+          <button class="ts-btn ts-primary" id="ts-login-btn">Connect with auth key</button>
+        </div>
+        <div class="ts-field">
+          <button class="ts-btn ts-secondary" id="ts-loginurl-btn">Get a browser login link instead</button>
+          <span id="ts-loginurl"></span>
+        </div>
       </div>
     </div>
   </div>
