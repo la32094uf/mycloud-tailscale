@@ -55,6 +55,12 @@ jobs:
       - name: desc.xml must match its template
         run: python3 tools/gen-desc.py --check
 
+      - name: PHP syntax and host-check tests
+        run: |
+          php -v | head -1
+          for f in tailscale/web/*.php; do php -l "$f"; done
+          sh tools/test-host-check.sh
+
       - name: Build packages
         run: ./build.sh
 
