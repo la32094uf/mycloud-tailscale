@@ -16,7 +16,7 @@ $APP_DIR  = dirname(dirname(realpath(__FILE__)));
 $CTL      = $APP_DIR . '/bin/tailscale-ctl.sh';
 $CONF_DIR = dirname($APP_DIR) . '/tailscale_conf';
 $SETTINGS = $CONF_DIR . '/settings.conf';
-$APP_VERSION = '1.0.19';
+$APP_VERSION = '1.0.20';
 if (preg_match('/^Version:\s*(\S+)/m', @file_get_contents($APP_DIR . '/apkg.rc'), $m)) $APP_VERSION = $m[1];
 
 $SETTING_KEYS = [
@@ -58,9 +58,14 @@ function ctl($args, $timeout = 120, $env = []) {
 
 function own_names() {
     $names = [strtolower((string)($_SERVER['SERVER_ADDR'] ?? '')), strtolower((string)gethostname()), 'localhost', '127.0.0.1', '::1'];
-    exec('ip -o addr 2>/dev/null', $lines);
-    foreach ($lines as $l) {
-        if (preg_match('/\binet6?\s+([0-9a-fA-F:.]+)/', $l, $m)) $names[] = strtolower($m[1]);
+    // php-fpm may run with an empty PATH on some firmware: call ip by absolute path.
+    foreach (['/sbin/ip', '/usr/sbin/ip', '/bin/ip', '/usr/bin/ip'] as $ip) {
+        if (!is_executable($ip)) continue;
+        exec(escapeshellarg($ip) . ' -o addr 2>/dev/null', $lines);
+        foreach ($lines as $l) {
+            if (preg_match('/\binet6?\s+([0-9a-fA-F:.]+)/', $l, $m)) $names[] = strtolower($m[1]);
+        }
+        break;
     }
     // The NAS's own Tailscale names (MagicDNS name such as nas-2.tailxxxx.ts.net, and its
     // Tailscale hostname), so the page also works when the dashboard is opened over the tailnet.
@@ -78,16 +83,33 @@ function own_names() {
     }
     return array_values(array_filter(array_unique($names)));
 }
+// Local DNS suffixes: well-known private ones plus whatever the router hands out
+// (search/domain in resolv.conf, e.g. "attlocal.net", "home", "speedport.ip").
+function local_suffixes() {
+    $sfx = ['lan', 'local', 'localdomain', 'home', 'home.arpa', 'internal', 'intranet', 'private', 'corp', 'box', 'fritz.box', 'router', 'gateway'];
+    foreach (@file('/etc/resolv.conf', FILE_IGNORE_NEW_LINES) ?: [] as $l) {
+        if (preg_match('/^\s*(search|domain)\s+(.+)$/', $l, $m)) {
+            foreach (preg_split('/\s+/', trim($m[2])) as $d) {
+                $d = strtolower(trim($d, '.'));
+                if (preg_match('/^[a-z0-9.-]+$/', $d)) $sfx[] = $d;
+            }
+        }
+    }
+    return array_unique($sfx);
+}
+// Is this Host header really this NAS? Guards against DNS rebinding, where a page on
+// attacker.example re-points its own name at the NAS: such requests always carry a
+// public DNS name. (The dashboard login cookie is the main barrier; this is extra.)
 function host_matches($host) {
-    $host = strtolower($host);
+    $host = strtolower(trim($host, '[]'));
+    // IP literals and single-label names are never rebinding targets.
+    if (filter_var($host, FILTER_VALIDATE_IP)) return true;
+    if ($host !== '' && strpos($host, '.') === false && preg_match('/^[a-z0-9-]+$/', $host)) return true;
     $names = own_names();
     if (in_array($host, $names, true)) return true;
-    // "mycloud.lan", "mycloud.local", "mycloud.tailxxxx.ts.net": hostname plus a local or
-    // tailnet suffix only, so an attacker-registered "mycloud.evil.example" does not pass.
+    // "<this-nas>.<local or tailnet suffix>", e.g. mycloud.lan, mycloud.attlocal.net, nas-2.tailxxxx.ts.net
     if (!preg_match('/^([^.]+)\.(.+)$/', $host, $m) || !in_array($m[1], $names, true)) return false;
-    $suffix = $m[2];
-    $local = ['lan', 'local', 'localdomain', 'home', 'home.arpa', 'internal', 'fritz.box'];
-    return in_array($suffix, $local, true) || (bool)preg_match('/^[a-z0-9-]+\.ts\.net$/', $suffix);
+    return in_array($m[2], local_suffixes(), true) || (bool)preg_match('/^[a-z0-9-]+\.ts\.net$/', $m[2]);
 }
 function read_settings() {
     global $SETTINGS, $SETTING_KEYS, $APP_DIR;
@@ -127,7 +149,7 @@ if ($mutating) {
     // names that really are this NAS: any of its interface addresses (LAN, Tailscale)
     // or its hostname. Note: the dashboard proxies to Apache on 127.0.0.1, so
     // SERVER_ADDR alone is not enough.
-    if (!host_matches($host)) fail('request not addressed to this NAS', 403);
+    if (!host_matches($host)) fail("This page was opened as '" . preg_replace('/[^A-Za-z0-9.:\[\]-]/', '', $host) . "', which the app does not recognise as this NAS. Open the dashboard via the NAS's IP address (e.g. http://192.168.1.10/) or its plain hostname instead, and please report the name you used at github.com/la32094uf/mycloud-tailscale/issues.", 403);
 }
 
 switch ($action) {
